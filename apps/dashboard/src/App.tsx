@@ -135,8 +135,8 @@ export function App() {
           <p className="section-kicker">Next milestone</p>
           <h2 id="next-title">Secure Supabase database setup</h2>
           <p>
-            Phase 2 adds the device registry, readings, alert rules, staff authentication, and Row
-            Level Security policies.
+            Phase 2 adds the device registry, readings, alert rules, public read-only access, and
+            Row Level Security policies.
           </p>
         </section>
       </main>

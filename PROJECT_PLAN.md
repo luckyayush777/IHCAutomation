@@ -156,18 +156,18 @@ Stores configurable thresholds rather than hard-coding them in the dashboard.
 
 Stores the complete alert lifecycle.
 
-| Column            | Type      | Notes                                   |
-| ----------------- | --------- | --------------------------------------- |
-| `id`              | UUID      | Primary key                             |
-| `rule_id`         | UUID      | Rule that created the alert             |
-| `device_id`       | UUID      | Affected device                         |
-| `status`          | Text      | `active`, `acknowledged`, or `resolved` |
-| `message`         | Text      | Staff-facing description                |
-| `trigger_value`   | Numeric   | Reading that triggered the alert        |
-| `triggered_at`    | Timestamp | When the condition began                |
-| `acknowledged_at` | Timestamp | When staff acknowledged it              |
-| `acknowledged_by` | UUID      | Authenticated staff user                |
-| `resolved_at`     | Timestamp | When readings returned to normal        |
+| Column            | Type      | Notes                                    |
+| ----------------- | --------- | ---------------------------------------- |
+| `id`              | UUID      | Primary key                              |
+| `rule_id`         | UUID      | Rule that created the alert              |
+| `device_id`       | UUID      | Affected device                          |
+| `status`          | Text      | `active`, `acknowledged`, or `resolved`  |
+| `message`         | Text      | Staff-facing description                 |
+| `trigger_value`   | Numeric   | Reading that triggered the alert         |
+| `triggered_at`    | Timestamp | When the condition began                 |
+| `acknowledged_at` | Timestamp | When staff acknowledged it               |
+| `acknowledged_by` | UUID      | Reserved for a future authenticated user |
+| `resolved_at`     | Timestamp | When readings returned to normal         |
 
 ### Optional later tables
 
@@ -274,22 +274,23 @@ Fire monitoring should use a reviewed combination of smoke, temperature, and rat
 - Filters for severity, device, status, and date.
 - Acknowledgement controls are planned for a later release and are not required for the first version.
 
-### Administration
+### Administration (deferred)
 
-- Configure thresholds and persistence duration.
-- Enable or disable a device or rule.
-- Mark a device as under maintenance.
-- View staff access and audit history.
+- The public dashboard does not include administration controls.
+- During the prototype, thresholds, device state, and rules are changed through reviewed database migrations or server-side tools.
+- An authenticated administration area can be added later if routine in-app configuration becomes necessary.
 
-The interface should be optimized for quick scanning on a health-centre computer and provide equal functional coverage on phones used by professors. Color must not be the only indication of an alert state. The office display should use a signed-in, restricted kiosk account rather than an anonymous public dashboard.
+The interface should be optimized for quick scanning on a health-centre computer and provide equal functional coverage on phones used by professors. Color must not be the only indication of an alert state. The prototype dashboard is public and does not require sign-in.
 
 ## 12. Security and Privacy
 
 - Keep patient and clinical data out of this system.
-- Require authentication for all dashboard pages.
-- Define `viewer` and `administrator` roles. Office and professor accounts can view status; only administrators can edit devices and alert rules.
+- Allow anonymous, read-only access to the monitoring dashboard during the prototype.
+- Do not expose configuration, acknowledgement, device-management, or database-write controls on the public dashboard.
+- Treat device names, readings, and alert history as public to anyone who receives the dashboard URL.
 - Enable Row Level Security on every exposed Supabase table.
-- Never expose a Supabase service-role key in the browser or device firmware.
+- Add narrowly scoped `select` policies for the public dashboard and deny anonymous `insert`, `update`, and `delete` operations.
+- Never expose a Supabase secret or service-role key in the browser or device firmware.
 - Store secrets in environment variables and exclude them from Git.
 - Give the ingestion API only the permissions it requires.
 - Use HTTPS for all device and dashboard traffic.
@@ -329,9 +330,9 @@ tests, production builds, environment templates, and local startup instructions 
 - Add database migrations for core tables, constraints, and indexes.
 - Add initial simulated devices.
 - Enable Row Level Security and create access policies.
-- Configure staff authentication.
+- Add anonymous read-only policies for dashboard data; defer staff authentication.
 
-**Completion criteria:** migrations can create the database from scratch, and unauthorized clients cannot read or write telemetry.
+**Completion criteria:** migrations can create the database from scratch, anonymous clients can read dashboard data, and browser clients cannot create or modify telemetry.
 
 ### Phase 3: Ingestion API and simulator
 
@@ -399,14 +400,14 @@ tests, production builds, environment templates, and local startup instructions 
 
 The six-week version is the recommended plan. A four-week delivery is possible for a software prototype and limited bench hardware, but it should not be described as a fully validated six-location operational system.
 
-| Week | Software work                                                     | Hardware and institute work                                                                        | Exit result                                    |
-| ---- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| 1    | Supabase schema, simulator, ingestion API foundation              | Site survey, Wi-Fi test, confirm 2–5°C rule, request fire-system quotes, order parts               | Simulated readings stored; procurement started |
-| 2    | Responsive overview, device pages, history charts, authentication | Bench-test ESP32, one SHT40, and one refrigerator probe                                            | Dashboard works on desktop and phone           |
-| 3    | Alert engine, offline detection, email notifications, CSV export  | Build one complete fridge node and one room node; test local buzzer and buffering                  | End-to-end bench demonstration                 |
-| 4    | Error handling, audit records, notification retries               | Calibrate first probe; review fire-vendor proposal; confirm installation points                    | Pilot-ready design and first validated nodes   |
-| 5    | SMS integration and operational polish                            | Assemble remaining nodes, install enclosures, test power and Wi-Fi at all six locations            | Two fridges and four rooms report data         |
-| 6    | Bug fixes, backup procedure, final documentation                  | Soak test, outage drills, staff training, handover; add WhatsApp only if account approval is ready | Controlled operational pilot sign-off          |
+| Week | Software work                                                         | Hardware and institute work                                                                        | Exit result                                    |
+| ---- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| 1    | Supabase schema, simulator, ingestion API foundation                  | Site survey, Wi-Fi test, confirm 2–5°C rule, request fire-system quotes, order parts               | Simulated readings stored; procurement started |
+| 2    | Responsive overview, device pages, history charts, public read access | Bench-test ESP32, one SHT40, and one refrigerator probe                                            | Dashboard works on desktop and phone           |
+| 3    | Alert engine, offline detection, email notifications, CSV export      | Build one complete fridge node and one room node; test local buzzer and buffering                  | End-to-end bench demonstration                 |
+| 4    | Error handling, audit records, notification retries                   | Calibrate first probe; review fire-vendor proposal; confirm installation points                    | Pilot-ready design and first validated nodes   |
+| 5    | SMS integration and operational polish                                | Assemble remaining nodes, install enclosures, test power and Wi-Fi at all six locations            | Two fridges and four rooms report data         |
+| 6    | Bug fixes, backup procedure, final documentation                      | Soak test, outage drills, staff training, handover; add WhatsApp only if account approval is ready | Controlled operational pilot sign-off          |
 
 Critical dependencies that must begin in Week 1:
 
@@ -495,7 +496,7 @@ IHCAutomation/
 ## 19. Testing Strategy
 
 - Unit tests for validation and alert-rule evaluation.
-- API tests for authentication, ingestion, duplicate handling, and permissions.
+- API tests for device authentication, ingestion, duplicate handling, and permissions.
 - Database tests for constraints and Row Level Security.
 - Dashboard tests for loading, offline, stale, warning, and critical states.
 - End-to-end tests that activate simulator scenarios and verify alert history.
@@ -512,7 +513,7 @@ The software prototype is complete when:
 - configurable out-of-range conditions create alerts;
 - staff can review active and resolved alerts; acknowledgement remains a future feature;
 - invalid readings are rejected or marked as suspect;
-- authentication and Row Level Security protect the data;
+- public users can read monitoring data while Row Level Security blocks browser-side writes;
 - the system can demonstrate normal, refrigerator excursion, humidity warning, possible fire, and offline-device scenarios;
 - setup and demonstration steps are documented.
 

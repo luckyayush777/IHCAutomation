@@ -2,7 +2,7 @@
 
 Environmental and medicine-fridge monitoring for the institute health centre. The first
 software milestone provides three independently runnable TypeScript applications and a shared
-health contract. Supabase storage and authentication are introduced in Phase 2.
+health contract. Supabase storage and public read-only access are introduced in Phase 2.
 
 ## Phase 1 services
 

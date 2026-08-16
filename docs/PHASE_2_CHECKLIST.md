@@ -1,8 +1,9 @@
 # Phase 2: What You Need To Do
 
-Phase 2 creates the Supabase database, security policies, initial devices, and staff login. Most
-of the technical work can be implemented in this repository. The following account and institute
-decisions require you because they involve ownership, credentials, or operational policy.
+Phase 2 creates the Supabase database, security policies, initial devices, and public read-only
+dashboard access. Staff login is intentionally deferred. Most of the technical work can be
+implemented in this repository. The following account and institute decisions require you because
+they involve ownership, credentials, or operational policy.
 
 ## Before Phase 2 starts
 
@@ -14,8 +15,9 @@ decisions require you because they involve ownership, credentials, or operationa
 4. Generate a strong database password and store it in a password manager.
 5. Keep the project on the Free plan during the prototype unless its limits become a problem.
 
-Do not make the project publicly accessible beyond Supabase's normal API endpoints, and do not
-send the database password or secret keys through email or chat.
+Do not expose database credentials or broad table access. Public dashboard reads will be granted
+only through narrow Row Level Security policies. Do not send the database password or secret keys
+through email or chat.
 
 ### 2. Put the project values in your local `.env`
 
@@ -27,22 +29,24 @@ SUPABASE_PUBLISHABLE_KEY=your-publishable-or-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-or-secret-key
 ```
 
-The publishable key will eventually be used by the signed-in dashboard. The service-role key is
-server-only and must never be exposed to the dashboard or physical devices.
+The publishable key will be used by the public read-only dashboard. This key is safe to place in a
+browser only because Row Level Security will limit what it can do. The service-role or secret key
+is server-only and must never be exposed to the dashboard or physical devices.
 
 You do not need to give the secret key to me in chat. Once it is in the ignored `.env` file, I can
 use it locally without printing it.
 
-### 3. Decide who can sign in during the prototype
+### 3. Confirm the public prototype boundary
 
-Prepare a short list containing:
+The first prototype will use this access model:
 
-- one staff email to act as the prototype administrator;
-- one ordinary staff email for permission testing;
-- whether professors need accounts now or only receive alerts in later phases.
+- no login is required to open the dashboard;
+- anyone with the dashboard URL can view device names, readings, status, and alert history;
+- public browser clients cannot insert, update, or delete database records;
+- configuration changes remain server-side during the prototype;
+- patient, clinical, recipient, and other personal data must not be stored in this system.
 
-Personal email accounts are acceptable for a private demo, but institute email addresses are
-preferable before an operational pilot.
+Authentication and staff roles can be added later without changing the sensor ingestion design.
 
 ### 4. Get four operating decisions in writing
 
@@ -81,16 +85,17 @@ Once the project exists and the local `.env` values are present, the repository 
 - data types, foreign keys, checks, uniqueness constraints, and query indexes;
 - two refrigerator devices and four room devices in development seed data;
 - Row Level Security on every exposed table;
-- staff read policies and server-only telemetry write policies;
-- Supabase email authentication wiring for the dashboard;
-- database tests proving anonymous clients cannot read or insert telemetry;
+- anonymous read-only policies and server-only telemetry write policies;
+- no login or account-management screens in the prototype;
+- database tests proving anonymous clients can read approved dashboard data but cannot insert,
+  update, or delete records;
 - reset and setup instructions so the database can be recreated from scratch.
 
 ## Phase 2 completion check
 
 Phase 2 is complete when a clean migration creates the whole schema, the six devices appear after
-seeding, a signed-in staff test user can read allowed data, and an anonymous browser cannot read or
-write readings.
+seeding, an anonymous browser can read approved dashboard data, and that browser cannot create or
+modify readings, devices, rules, or alerts.
 
 The next step is Phase 3: the simulator sends deterministic normal and abnormal readings to the API,
 and the API validates and stores them in Supabase.
