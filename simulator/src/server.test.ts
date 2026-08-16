@@ -4,9 +4,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { createSimulatorServer } from './server.js';
 import {
+  createScenarioReadingBatch,
   createNormalReadingBatch,
   readSimulatorConfig,
   sendNormalTelemetryTick,
+  sendTelemetryTick,
 } from './telemetry.js';
 
 const openServers: ReturnType<typeof createSimulatorServer>[] = [];
@@ -69,6 +71,7 @@ describe('normal telemetry generation', () => {
 
     expect(results).toHaveLength(6);
     expect(results.every((result) => result.accepted)).toBe(true);
+    expect(results.every((result) => result.attempts === 1)).toBe(true);
     expect(calls).toHaveLength(6);
     const firstCall = calls[0];
 
@@ -89,11 +92,97 @@ describe('normal telemetry generation', () => {
         INGESTION_API_URL: 'http://localhost:4000/api/v1/readings',
         SIMULATOR_DEVICE_KEY: 'device-token',
         SIMULATOR_INTERVAL_MS: '30000',
+        SIMULATOR_RETRY_ATTEMPTS: '2',
+        SIMULATOR_SCENARIO: 'high_fridge',
       }),
     ).toEqual({
       ingestionApiUrl: 'http://localhost:4000/api/v1/readings',
       deviceToken: 'device-token',
       intervalMs: 30000,
+      retryAttempts: 2,
+      scenario: 'high_fridge',
     });
+  });
+
+  it('creates deterministic abnormal scenario batches', () => {
+    const recordedAt = new Date('2026-08-16T09:30:00.000Z');
+
+    expect(
+      createScenarioReadingBatch('fridge_male_ward', recordedAt, 0, 'high_fridge').readings[0],
+    ).toMatchObject({ metric: 'temperature', value: 6.2 });
+    expect(
+      createScenarioReadingBatch('fridge_female_ward', recordedAt, 0, 'low_fridge').readings[0],
+    ).toMatchObject({ metric: 'temperature', value: 1.4 });
+    expect(
+      createScenarioReadingBatch('fridge_male_ward', recordedAt, 0, 'door_excursion').readings[0],
+    ).toMatchObject({ metric: 'temperature', value: 7.4 });
+    expect(
+      createScenarioReadingBatch('female_ward', recordedAt, 0, 'high_humidity').readings.find(
+        (reading) => reading.metric === 'humidity',
+      ),
+    ).toMatchObject({ value: 78 });
+    expect(
+      createScenarioReadingBatch('monitoring_room', recordedAt, 2, 'smoke_signal').readings,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ metric: 'smoke', value: 364 }),
+        expect.objectContaining({ metric: 'detector_alarm', value: 1 }),
+      ]),
+    );
+    expect(
+      createScenarioReadingBatch('male_ward', recordedAt, 0, 'invalid_sensor').readings.find(
+        (reading) => reading.metric === 'humidity',
+      ),
+    ).toMatchObject({ value: 118, quality: 'invalid' });
+  });
+
+  it('skips one device in the offline-device scenario', async () => {
+    const calls: RequestInit[] = [];
+    const fetcher = async (_url: string | URL | Request, init?: RequestInit) => {
+      calls.push(init ?? {});
+      return new Response(null, { status: 202 });
+    };
+
+    const results = await sendTelemetryTick(
+      {
+        ingestionApiUrl: 'http://localhost:4000/api/v1/readings',
+        deviceToken: 'device-token',
+        intervalMs: 60_000,
+        retryAttempts: 0,
+        scenario: 'offline_device',
+      },
+      0,
+      new Date('2026-08-16T09:30:00.000Z'),
+      fetcher,
+    );
+
+    expect(results).toContainEqual(
+      expect.objectContaining({ deviceCode: 'female_ward', skipped: true }),
+    );
+    expect(calls).toHaveLength(5);
+  });
+
+  it('retries network failures before reporting a failed batch', async () => {
+    let attempts = 0;
+    const fetcher = async () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error('network down');
+      return new Response(null, { status: 202 });
+    };
+
+    const results = await sendTelemetryTick(
+      {
+        ingestionApiUrl: 'http://localhost:4000/api/v1/readings',
+        deviceToken: 'device-token',
+        intervalMs: 60_000,
+        retryAttempts: 1,
+        scenario: 'normal',
+      },
+      0,
+      new Date('2026-08-16T09:30:00.000Z'),
+      fetcher,
+    );
+
+    expect(results[0]).toMatchObject({ accepted: true, attempts: 2 });
   });
 });

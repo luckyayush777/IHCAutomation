@@ -91,16 +91,16 @@ Sensors must not connect directly to the database. They send readings to an inge
 
 ## 6. Technology Choices
 
-| Area              | Initial choice                                    | Reason                                                                           |
-| ----------------- | ------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Database          | Supabase PostgreSQL                               | Managed SQL database with authentication and realtime support                    |
-| Frontend          | Plain HTML, CSS, JavaScript, and Vite             | Lightweight public dashboard without a component framework                       |
-| Charts            | Chart.js                                          | Straightforward time-series charts with minimal browser JavaScript               |
-| Backend           | Node.js with Express and TypeScript               | Small ingestion and alert-processing API using the same language as the frontend |
-| Simulator         | Node.js TypeScript script                         | Shares data types and validation rules with the backend                          |
-| Live updates      | Short polling through the Express API             | Keeps dashboard readings current without exposing write credentials              |
-| Local development | Supabase cloud project plus environment variables | Fastest prototype setup                                                          |
-| Hosting           | Decide after the local prototype                  | Depends on institute policy and deployment preference                            |
+| Area              | Initial choice                                    | Reason                                                              |
+| ----------------- | ------------------------------------------------- | ------------------------------------------------------------------- |
+| Database          | Supabase PostgreSQL                               | Managed SQL database with authentication and realtime support       |
+| Frontend          | Plain HTML, CSS, JavaScript, and Vite             | Lightweight public dashboard without a component framework          |
+| Charts            | Chart.js                                          | Straightforward time-series charts with minimal browser JavaScript  |
+| Backend           | Node.js with Express and TypeScript               | Small ingestion, dashboard-data, and alert-processing API           |
+| Simulator         | Node.js TypeScript script                         | Shares data types and validation rules with the backend             |
+| Live updates      | Short polling through the Express API             | Keeps dashboard readings current without exposing write credentials |
+| Local development | Supabase cloud project plus environment variables | Fastest prototype setup                                             |
+| Hosting           | Decide after the local prototype                  | Depends on institute policy and deployment preference               |
 
 ## 7. Data Model
 
@@ -341,26 +341,28 @@ access was verified with a temporary write/delete probe.
 
 ### Phase 3: Ingestion API and simulator
 
-**Status:** In progress on 16 August 2026. The shared ingestion contract, authenticated
-`POST /api/v1/readings` API route, Supabase-backed reading storage, device heartbeat update, and
-deterministic normal simulator batches have been added. A hosted integration probe successfully
-stored one refrigerator reading through the API and cleaned it up afterward. Remaining Phase 3 work
-includes broader live simulator soak testing, duplicate handling, delayed-reading behavior, and
-abnormal scenario controls.
+**Status:** Completed on 16 August 2026. The shared ingestion contract, authenticated
+`POST /api/v1/readings` API route, Supabase-backed reading storage, device heartbeat update,
+idempotent duplicate handling, delayed-reading retry policy, deterministic normal batches, abnormal
+simulator scenarios, offline-device simulation, and network retry behavior have been added. A
+hosted integration probe successfully stored one refrigerator reading through the API and cleaned it
+up afterward.
 
 - Implement device authentication and reading validation.
 - Store valid readings and update device heartbeat information.
 - Implement normal and abnormal simulator scenarios.
 - Add automated tests for valid, invalid, duplicate, and delayed readings.
 
-**Completion criteria:** the simulator continuously populates Supabase and invalid readings are handled predictably.
+**Completion criteria:** the simulator can continuously populate Supabase, deterministic failure
+scenarios are available for demonstrations, duplicate retries are idempotent, delayed queued
+readings have a tested 24-hour acceptance window, and invalid readings are handled predictably.
 
 ### Phase 4: Dashboard
 
 - Build the overview and device-detail screens.
 - Add historical charts and time-range selection.
 - Add loading, disconnected, stale, empty, and error states.
-- Add live updates through Realtime or polling.
+- Add live updates through short polling against the Express dashboard endpoint.
 
 **Completion criteria:** staff can identify every device's current condition and inspect its recent history.
 
@@ -535,7 +537,7 @@ The software prototype is complete when:
 2. Ask the institute to confirm the 2–5°C range, alert delay, notification recipients, and escalation procedure in writing.
 3. Survey Wi-Fi signal and power availability at both refrigerators and all four rooms.
 4. Request a qualified quote for certified fire detection and local sounders in the four rooms.
-5. Scaffold the frontend, API, and simulator applications using TypeScript.
+5. Scaffold the plain dashboard, TypeScript API, and TypeScript simulator applications.
 6. Write the first database migration for `devices`, `readings`, `alert_rules`, and `alerts`.
 7. Seed two refrigerator devices and four room devices.
 8. Implement the normal simulator scenario and verify readings in Supabase.
@@ -560,7 +562,7 @@ The software prototype is complete when:
 
 - Supabase database: <https://supabase.com/docs/guides/database/overview>
 - Supabase Row Level Security: <https://supabase.com/docs/guides/database/postgres/row-level-security>
-- Supabase Realtime: <https://supabase.com/docs/guides/realtime>
+- Chart.js documentation: <https://www.chartjs.org/docs/latest/>
 - Supabase backups: <https://supabase.com/docs/guides/platform/backups>
 - Supabase pricing: <https://supabase.com/pricing>
 - Espressif ESP32 documentation: <https://www.espressif.com/en/products/socs/esp32/documentation>

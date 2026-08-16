@@ -107,9 +107,9 @@ export class SupabaseMonitoringStore implements MonitoringStore {
       received_at: receivedAt,
     }));
 
-    await this.request('readings', {
+    await this.request('readings?on_conflict=device_id,metric,recorded_at', {
       method: 'POST',
-      headers: { prefer: 'return=minimal' },
+      headers: { prefer: 'resolution=ignore-duplicates,return=minimal' },
       body: JSON.stringify(readings),
     });
 

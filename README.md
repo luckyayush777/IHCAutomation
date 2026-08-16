@@ -115,6 +115,16 @@ Example payload:
 The API uses `SUPABASE_SECRET_KEY` server-side to store valid readings and update device heartbeat
 state. The simulator uses `SIMULATOR_DEVICE_KEY`; it never needs Supabase database keys.
 
+Simulator scenarios are controlled with:
+
+```dotenv
+SIMULATOR_SCENARIO=normal
+SIMULATOR_RETRY_ATTEMPTS=1
+```
+
+Available scenarios are `normal`, `high_fridge`, `low_fridge`, `door_excursion`, `high_humidity`,
+`smoke_signal`, `invalid_sensor`, and `offline_device`.
+
 ## Dashboard data
 
 The browser reads from the API only:

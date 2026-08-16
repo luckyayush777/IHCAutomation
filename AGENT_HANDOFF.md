@@ -126,11 +126,12 @@ plans               Project and hardware planning documents (currently uncommitt
 
 Local services:
 
-| Service          | URL                            |
-| ---------------- | ------------------------------ |
-| Dashboard        | `http://127.0.0.1:5173`        |
-| API health       | `http://localhost:4000/health` |
-| Simulator health | `http://localhost:4100/health` |
+| Service          | URL                                      |
+| ---------------- | ---------------------------------------- |
+| Dashboard        | `http://127.0.0.1:5173`                  |
+| API health       | `http://localhost:4000/health`           |
+| Dashboard API    | `http://localhost:4000/api/v1/dashboard` |
+| Simulator health | `http://localhost:4100/health`           |
 
 The simulator only exposes its health endpoint today. Telemetry generation belongs to Phase 3.
 
@@ -230,12 +231,14 @@ Server REST verification:
 
 - `SUPABASE_SECRET_KEY` insert into `devices`: HTTP 201.
 - Cleanup delete for the temporary probe row: HTTP 204.
+- Phase 3 idempotency migration
+  `supabase/migrations/20260816103000_add_reading_idempotency.sql` was applied to hosted Supabase.
 
 ## Phase 3 Status
 
-Phase 3 is in progress. Do not request staff emails or login requirements yet.
+Phase 3 is complete. Do not request staff emails or login requirements yet.
 
-Completed in the first Phase 3 slice:
+Completed in Phase 3:
 
 - Shared ingestion contract and validator added in `packages/shared/src/index.ts`.
 - API route `POST /api/v1/readings` added in `apps/api/src/app.ts`.
@@ -249,8 +252,17 @@ Completed in the first Phase 3 slice:
 - Simulator deterministic normal readings added in `simulator/src/telemetry.ts`.
 - Simulator startup now posts one normal tick immediately and then repeats at
   `SIMULATOR_INTERVAL_MS` when `SIMULATOR_DEVICE_KEY` is configured.
-- Simulator tests cover normal fridge/room batch shapes, one POST per seeded device, and token-only
-  simulator auth.
+- Duplicate reading handling is explicit: `readings` has a unique `(device_id, metric,
+recorded_at)` index, and the API uses Supabase REST `resolution=ignore-duplicates` for idempotent
+  retries.
+- Delayed queued readings are accepted up to 24 hours after `recordedAt`; older readings are
+  rejected by the shared validator.
+- Simulator scenarios are selected with `SIMULATOR_SCENARIO`: `normal`, `high_fridge`,
+  `low_fridge`, `door_excursion`, `high_humidity`, `smoke_signal`, `invalid_sensor`, and
+  `offline_device`.
+- Simulator network retry attempts are controlled by `SIMULATOR_RETRY_ATTEMPTS`.
+- Simulator tests cover normal fridge/room batch shapes, one POST per seeded device, token-only
+  simulator auth, abnormal scenarios, offline-device skipping, and network retry.
 
 Hosted integration probe completed:
 
@@ -260,17 +272,17 @@ Hosted integration probe completed:
 - Supabase contained exactly one probe row for the posted `recorded_at`.
 - Cleanup deleted the probe reading with HTTP 204.
 - Cleanup reset `fridge_male_ward` to `status = 'offline'`, `last_seen_at = null` with HTTP 204.
+- Posted the same authenticated `fridge_male_ward` temperature reading twice through
+  `/api/v1/readings` after the idempotency migration.
+- Both API calls returned HTTP 202, Supabase contained exactly one matching probe row, and cleanup
+  deleted that row and reset `fridge_male_ward` heartbeat state.
 
-Remaining Phase 3 work:
+Post-Phase-3 follow-up:
 
-1. Add duplicate-reading handling or an explicit idempotency policy.
-2. Decide and test delayed-reading retry behavior for queued gateway uploads.
-3. Add deterministic abnormal simulator scenarios: high fridge, low fridge, short door excursion,
-   high humidity, smoke/fire signal, invalid sensor value, offline device, and network retry.
-4. Consider whether physical devices need per-device credentials instead of the single
-   `SIMULATOR_DEVICE_KEY`.
-5. Add a longer live simulator run against hosted Supabase once the user wants real sample telemetry
-   retained for dashboard work.
+- Physical devices may need per-device credentials instead of the single `SIMULATOR_DEVICE_KEY`.
+  That decision belongs with hardware provisioning.
+- A longer live simulator run against hosted Supabase can be done once the user wants retained
+  sample telemetry for dashboard work.
 
 Dashboard migration note:
 
@@ -279,6 +291,9 @@ Dashboard migration note:
   and Chart.js.
 - The browser polls `GET /api/v1/dashboard`; it does not talk directly to Supabase and exposes no
   write, acknowledgement, configuration, or login controls.
+- Vite dev dependency optimization for Chart.js is disabled in `apps/dashboard/vite.config.ts`
+  because the managed Windows filesystem blocked esbuild while pre-bundling Chart.js. Production
+  builds pass with the current config.
 
 ## Safety Boundary
 

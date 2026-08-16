@@ -92,6 +92,9 @@ create table public.alerts (
 create index readings_device_metric_recorded_at_idx
   on public.readings (device_id, metric, recorded_at desc);
 
+create unique index if not exists readings_device_metric_recorded_at_unique_idx
+  on public.readings (device_id, metric, recorded_at);
+
 create index readings_recorded_at_idx
   on public.readings (recorded_at desc);
 

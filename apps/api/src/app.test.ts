@@ -2,7 +2,7 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 
 import { createApp } from './app.js';
-import type { MonitoringStore } from './monitoringStore.js';
+import { SupabaseMonitoringStore, type MonitoringStore } from './monitoringStore.js';
 
 class FakeMonitoringStore implements MonitoringStore {
   readonly stored: Array<{ deviceId: string; receivedAt: string; readingCount: number }> = [];
@@ -177,6 +177,30 @@ describe('reading ingestion endpoint', () => {
     expect(store.stored).toEqual([]);
   });
 
+  it('accepts delayed queued readings within the retry window', async () => {
+    const store = new FakeMonitoringStore();
+    const response = await request(
+      createApp({ deviceToken: 'test-device-token', monitoringStore: store, now }),
+    )
+      .post('/api/v1/readings')
+      .set('Authorization', 'Bearer test-device-token')
+      .send({
+        contractVersion: 1,
+        deviceCode: 'fridge_male_ward',
+        readings: [
+          {
+            metric: 'temperature',
+            value: 4.2,
+            unit: 'celsius',
+            recordedAt: '2026-08-15T09:31:00.000Z',
+          },
+        ],
+      });
+
+    expect(response.status).toBe(202);
+    expect(store.stored).toHaveLength(1);
+  });
+
   it('rejects unknown devices', async () => {
     const response = await request(
       createApp({
@@ -203,5 +227,41 @@ describe('reading ingestion endpoint', () => {
 
     expect(response.status).toBe(503);
     expect(response.body).toEqual({ error: 'ingestion is not configured' });
+  });
+});
+
+describe('Supabase monitoring storage', () => {
+  it('stores readings with an idempotent conflict policy', async () => {
+    const calls: Array<{ path: string; init: RequestInit }> = [];
+    const fetcher = async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ path: String(url), init: init ?? {} });
+      return new Response('[]', { status: 200, headers: { 'content-type': 'application/json' } });
+    };
+    const store = new SupabaseMonitoringStore(
+      'https://example.supabase.co',
+      'server-secret',
+      fetcher,
+    );
+
+    await store.storeReadings(
+      'device-1',
+      {
+        deviceCode: 'fridge_male_ward',
+        readings: [
+          {
+            metric: 'temperature',
+            value: 4.2,
+            unit: 'celsius',
+            recordedAt: '2026-08-16T09:29:30.000Z',
+          },
+        ],
+      },
+      '2026-08-16T09:30:00.000Z',
+    );
+
+    expect(calls[0]?.path).toContain('readings?on_conflict=device_id,metric,recorded_at');
+    expect(calls[0]?.init.headers).toMatchObject({
+      prefer: 'resolution=ignore-duplicates,return=minimal',
+    });
   });
 });

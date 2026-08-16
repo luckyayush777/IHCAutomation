@@ -37,6 +37,7 @@ describe('Supabase monitoring schema', () => {
     expect(migration).toContain("metric in ('temperature', 'humidity', 'smoke', 'detector_alarm')");
     expect(migration).toContain("severity in ('warning', 'critical', 'emergency')");
     expect(migration).toContain('on public.readings (device_id, metric, recorded_at desc)');
+    expect(migration).toContain('readings_device_metric_recorded_at_unique_idx');
     expect(migration).toContain('alerts_one_open_per_rule_device_idx');
   });
 

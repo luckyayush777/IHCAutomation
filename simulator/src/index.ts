@@ -1,7 +1,7 @@
 import { config } from 'dotenv';
 
 import { createSimulatorServer } from './server.js';
-import { readSimulatorConfig, sendNormalTelemetryTick } from './telemetry.js';
+import { readSimulatorConfig, sendTelemetryTick } from './telemetry.js';
 
 config({ path: new URL('../../.env', import.meta.url) });
 
@@ -17,10 +17,13 @@ async function sendTelemetry() {
   }
 
   try {
-    const results = await sendNormalTelemetryTick(simulatorConfig, tick);
+    const results = await sendTelemetryTick(simulatorConfig, tick);
     tick += 1;
     const accepted = results.filter((result) => result.accepted).length;
-    console.log(`Simulator telemetry tick accepted ${accepted}/${results.length} device batches`);
+    const skipped = results.filter((result) => result.skipped).length;
+    console.log(
+      `Simulator ${simulatorConfig.scenario} tick accepted ${accepted}/${results.length} device batches, skipped ${skipped}`,
+    );
   } catch (error) {
     console.error(error instanceof Error ? error.message : 'Simulator telemetry tick failed');
   }
@@ -34,7 +37,9 @@ server.listen(port, () => {
     return;
   }
 
-  console.log(`Simulator telemetry posting to ${simulatorConfig.ingestionApiUrl}`);
+  console.log(
+    `Simulator ${simulatorConfig.scenario} telemetry posting to ${simulatorConfig.ingestionApiUrl}`,
+  );
   void sendTelemetry();
   telemetryTimer = setInterval(() => void sendTelemetry(), simulatorConfig.intervalMs);
 });
