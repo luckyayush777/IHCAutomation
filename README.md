@@ -83,8 +83,7 @@ Development seed data lives in `supabase/seed.sql`.
 With the Supabase CLI installed and linked to the hosted project, apply the schema and seeds with:
 
 ```powershell
-supabase db push
-supabase db seed
+npx.cmd supabase db push --include-seed
 ```
 
 ## Repository map

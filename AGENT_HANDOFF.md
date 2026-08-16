@@ -8,8 +8,8 @@ This repository is an IoT environmental-monitoring project for an institute heal
 software prototype monitors two medicine refrigerators and four rooms, stores telemetry in
 Supabase, displays it on a responsive dashboard, and will later generate local and remote alerts.
 
-Phase 1 is complete. The Supabase project and credentials are ready, but Phase 2 database
-migrations have not been created or applied.
+Phase 1 and Phase 2 are complete. The hosted Supabase project has the initial monitoring schema,
+seed devices, refrigerator alert rules, and public read-only RLS boundary applied and verified.
 
 Do not reintroduce dashboard login in the prototype. The user explicitly removed that requirement.
 The dashboard must be publicly readable without an account, while all browser-side writes remain
@@ -75,13 +75,16 @@ SUPABASE_JWKS_URL
 SUPABASE_DB_PASSWORD
 ```
 
-Connection checks completed successfully:
+Connection and Phase 2 verification checks completed successfully:
 
 - Project and Auth API are reachable.
-- The publishable key is accepted.
-- The publishable key reaches PostgREST; querying `devices` currently returns the expected
-  table-not-found response because migrations have not run.
+- The publishable key is accepted and can anonymously read the approved monitoring tables.
+- The hosted project has 6 seeded devices and 2 refrigerator alert rules.
+- `devices`, `readings`, `alert_rules`, and `alerts` all have RLS enabled.
+- Anonymous `select` returns HTTP 200 on all four exposed tables.
+- Anonymous `insert`, `update`, and `delete` are blocked on all four exposed tables.
 - The secret key is accepted when called with a server User-Agent.
+- A temporary server-side secret-key insert/delete probe succeeded and cleaned itself up.
 - The database password is present locally.
 
 Important testing detail: Supabase intentionally returns HTTP 401 when an `sb_secret_...` key is
@@ -92,6 +95,20 @@ secret is invalid.
 
 The original template used the legacy-looking variable `SUPABASE_SERVICE_ROLE_KEY`. New code should
 standardize on `SUPABASE_SECRET_KEY` and use the current `sb_secret_...` value only in the API.
+
+Supabase CLI is installed as a project dev dependency:
+
+```powershell
+npx.cmd supabase --version
+# 2.114.0
+```
+
+Use `npx.cmd`, not `npx`, in this PowerShell installation because script execution policy blocks
+the `npx.ps1` shim.
+
+The CLI may need permission to write `C:\Users\user\.supabase` for telemetry/settings. Direct
+hosted database commands were run by constructing a Postgres URL in memory from `SUPABASE_URL` and
+`SUPABASE_DB_PASSWORD`; do not print that URL because it contains the password.
 
 ## Current Architecture
 
@@ -129,8 +146,8 @@ Phase 1 includes:
 - unit/integration tests for all packages;
 - production builds and environment handling.
 
-The last full verification passed formatting, lint, type checking, four test files, and all
-production builds. Rerun before completing Phase 2:
+The last full verification after Phase 2 passed formatting, lint, type checking, tests, and all
+production builds:
 
 ```powershell
 npm.cmd run check
@@ -169,42 +186,70 @@ D  PROJECT_PLAN.md
 
 The planning documents now exist at `plans/PROJECT_PLAN.md` and
 `plans/HARDWARE_AND_BUDGET.md`. Treat this as user work and do not move or revert it without an
-explicit request. The root `.env.example` is deleted and was not found under `plans/`; determine
-whether that deletion was intentional before committing. README links still point at the old root
-planning-document paths and may need updating after the user confirms the layout.
+explicit request. README links now point to the `plans/` paths. The root `.env.example` is still
+deleted and was not found under `plans/`; determine whether that deletion was intentional before
+committing.
 
-## Phase 2 Starting Point
+Additional Phase 2 changes currently in the worktree:
 
-The user has completed all currently required Supabase and operational decisions. A new agent can
-begin implementation without requesting staff emails or login requirements.
+- `supabase/config.toml` added with project and seed configuration.
+- `supabase/migrations/20260816093000_initial_monitoring_schema.sql` added.
+- `supabase/seed.sql` now idempotently seeds six devices and two refrigerator rules.
+- `packages/shared/src/schema.test.ts` added for schema/RLS structure checks.
+- `supabase` package dev dependency added in `package.json` / `package-lock.json`.
+- `README.md`, `docs/PHASE_2_CHECKLIST.md`, and `plans/PROJECT_PLAN.md` updated for Phase 2.
+
+## Phase 2 Completion Notes
+
+Migration applied to the hosted Supabase project:
+
+```powershell
+npx.cmd supabase db push --db-url <constructed-in-memory-url> --include-all --yes
+```
+
+Seed applied and verified using the checked-in `supabase/seed.sql`. The seed file was rewritten as
+one SQL statement because `npx.cmd supabase db query --file supabase\seed.sql` rejected multiple
+commands in one prepared statement.
+
+Final hosted counts:
+
+| Table                      | Count |
+| -------------------------- | ----: |
+| `devices`                  |     6 |
+| `alert_rules`              |     2 |
+| `readings`                 |     0 |
+| `alerts`                   |     0 |
+| RLS-enabled exposed tables |     4 |
+
+Anonymous REST verification:
+
+- `select` on `devices`, `readings`, `alert_rules`, and `alerts`: HTTP 200.
+- `insert`, `update`, and `delete` on all four tables: HTTP 401.
+
+Server REST verification:
+
+- `SUPABASE_SECRET_KEY` insert into `devices`: HTTP 201.
+- Cleanup delete for the temporary probe row: HTTP 204.
+
+## Phase 3 Starting Point
+
+Begin ingestion API and simulator work. Do not request staff emails or login requirements yet.
 
 Recommended order:
 
-1. Inspect and preserve the existing dirty worktree, especially the `plans/` move.
-2. Standardize environment naming on `SUPABASE_SECRET_KEY` without exposing its value.
-3. Add Supabase CLI project configuration and a repeatable initial migration.
-4. Create `devices`, `readings`, `alert_rules`, and `alerts` with constraints and indexes defined in
-   the project plan.
-5. Enable RLS on every exposed table.
-6. Grant anonymous `select` only on the fields/tables required by the public dashboard.
-7. Explicitly block anonymous inserts, updates, and deletes; server secret access remains available
-   to the backend.
-8. Seed the two refrigerator and four room devices listed above, plus the confirmed refrigerator
-   rule defaults.
-9. Add database tests for constraints and RLS, including positive anonymous reads and negative
-   anonymous write tests.
-10. Verify the migration can recreate the schema from scratch and can be applied to the hosted
-    Supabase project.
-11. Update the Phase 2 checklist and project-plan status after verification.
-
-Phase 2 is complete only when:
-
-- a clean migration creates the schema;
-- all six seeded devices are present;
-- public clients can read approved monitoring data without login;
-- public clients cannot create or modify devices, readings, rules, or alerts;
-- the server can use its secret key for trusted operations;
-- no secret appears in Git history or browser code.
+1. Add shared telemetry contracts for `deviceCode`, metric readings, accepted units, timestamps, and
+   API responses.
+2. Implement `POST /api/v1/readings` in `apps/api` using `SUPABASE_SECRET_KEY` only on the server.
+3. Authenticate simulator/device requests with `SIMULATOR_DEVICE_KEY` or a server-side device-token
+   mechanism; never put database keys in simulator payloads or firmware.
+4. Validate device code, metric, unit, numeric range, quality, and timestamp freshness.
+5. Insert valid readings into Supabase and update `devices.last_seen_at` / `devices.status`.
+6. Add API tests for valid readings, unknown devices, invalid metric/unit pairs, impossible values,
+   stale timestamps, future timestamps, missing auth, and no credential logging.
+7. Extend the simulator beyond `/health` so it emits deterministic normal readings for all six
+   seeded device slugs.
+8. Keep alert evaluation mostly deferred to Phase 5, but preserve the schema/API shape needed for
+   rule evaluation.
 
 ## Safety Boundary
 

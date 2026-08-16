@@ -86,12 +86,12 @@ Once the project exists and the local `.env` values are present, the repository 
 - [x] two refrigerator devices and four room devices in development seed data;
 - [x] Row Level Security on every exposed table;
 - [x] anonymous read-only policies for dashboard access, with anonymous writes blocked;
-- [ ] apply the migration and seed data to the hosted Supabase project;
-- [ ] verify live anonymous reads and blocked browser-side writes against the hosted project;
-- no login or account-management screens in the prototype;
-- database tests proving anonymous clients can read approved dashboard data but cannot insert,
-  update, or delete records;
-- reset and setup instructions so the database can be recreated from scratch.
+- [x] apply the migration and seed data to the hosted Supabase project;
+- [x] verify live anonymous reads and blocked browser-side writes against the hosted project;
+- [x] no login or account-management screens in the prototype;
+- [x] database tests proving anonymous clients can read approved dashboard data but cannot insert,
+      update, or delete records;
+- [x] reset and setup instructions so the database can be recreated from scratch.
 
 ## Phase 2 completion check
 

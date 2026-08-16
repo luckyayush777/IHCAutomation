@@ -326,9 +326,10 @@ tests, production builds, environment templates, and local startup instructions 
 
 ### Phase 2: Supabase setup
 
-**Status:** In progress on 16 August 2026. Repository migration, seed data, Supabase CLI config, and
-schema/RLS structure tests have been added. Live hosted-project application and RLS verification are
-still pending because the local Supabase CLI and `psql` are not installed in this workspace.
+**Status:** Completed on 16 August 2026. The hosted Supabase project has the Phase 2 migration and
+seed data applied. Public clients can read the approved dashboard tables and are blocked from
+insert, update, and delete operations across the exposed monitoring tables. Server-side secret-key
+access was verified with a temporary write/delete probe.
 
 - Create a Supabase project.
 - Add database migrations for core tables, constraints, and indexes.
