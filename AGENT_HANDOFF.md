@@ -112,10 +112,10 @@ hosted database commands were run by constructing a Postgres URL in memory from 
 
 ## Current Architecture
 
-This is an npm workspace using TypeScript throughout:
+This is an npm workspace with TypeScript services and a plain JavaScript dashboard:
 
 ```text
-apps/dashboard     React + Vite public dashboard
+apps/dashboard     Plain HTML/CSS/JS + Chart.js public dashboard, served by Vite
 apps/api           Express ingestion and alert-processing API
 packages/shared    Shared TypeScript contracts
 simulator          Node TypeScript sensor simulator
@@ -139,7 +139,7 @@ The simulator only exposes its health endpoint today. Telemetry generation belon
 Phase 1 includes:
 
 - npm workspace and shared TypeScript configuration;
-- responsive React foundation screen;
+- responsive public dashboard foundation without React;
 - Express API health endpoint;
 - simulator health endpoint;
 - ESLint and Prettier;
@@ -231,25 +231,54 @@ Server REST verification:
 - `SUPABASE_SECRET_KEY` insert into `devices`: HTTP 201.
 - Cleanup delete for the temporary probe row: HTTP 204.
 
-## Phase 3 Starting Point
+## Phase 3 Status
 
-Begin ingestion API and simulator work. Do not request staff emails or login requirements yet.
+Phase 3 is in progress. Do not request staff emails or login requirements yet.
 
-Recommended order:
+Completed in the first Phase 3 slice:
 
-1. Add shared telemetry contracts for `deviceCode`, metric readings, accepted units, timestamps, and
-   API responses.
-2. Implement `POST /api/v1/readings` in `apps/api` using `SUPABASE_SECRET_KEY` only on the server.
-3. Authenticate simulator/device requests with `SIMULATOR_DEVICE_KEY` or a server-side device-token
-   mechanism; never put database keys in simulator payloads or firmware.
-4. Validate device code, metric, unit, numeric range, quality, and timestamp freshness.
-5. Insert valid readings into Supabase and update `devices.last_seen_at` / `devices.status`.
-6. Add API tests for valid readings, unknown devices, invalid metric/unit pairs, impossible values,
-   stale timestamps, future timestamps, missing auth, and no credential logging.
-7. Extend the simulator beyond `/health` so it emits deterministic normal readings for all six
-   seeded device slugs.
-8. Keep alert evaluation mostly deferred to Phase 5, but preserve the schema/API shape needed for
-   rule evaluation.
+- Shared ingestion contract and validator added in `packages/shared/src/index.ts`.
+- API route `POST /api/v1/readings` added in `apps/api/src/app.ts`.
+- Supabase REST persistence added in `apps/api/src/monitoringStore.ts` using
+  `SUPABASE_SECRET_KEY` only on the server.
+- Ingestion authentication uses `Authorization: Bearer <SIMULATOR_DEVICE_KEY>`.
+- Valid readings are inserted into `readings`, and the device row is patched to `status = 'online'`
+  with `last_seen_at = receivedAt`.
+- API tests cover valid storage, missing/invalid auth, invalid metric/unit/value/timestamp payloads,
+  unknown devices, and missing server config.
+- Simulator deterministic normal readings added in `simulator/src/telemetry.ts`.
+- Simulator startup now posts one normal tick immediately and then repeats at
+  `SIMULATOR_INTERVAL_MS` when `SIMULATOR_DEVICE_KEY` is configured.
+- Simulator tests cover normal fridge/room batch shapes, one POST per seeded device, and token-only
+  simulator auth.
+
+Hosted integration probe completed:
+
+- Started the Express app in-process with local `.env`.
+- Posted one authenticated `fridge_male_ward` temperature reading through `/api/v1/readings`.
+- API returned HTTP 202 with `accepted = 1`.
+- Supabase contained exactly one probe row for the posted `recorded_at`.
+- Cleanup deleted the probe reading with HTTP 204.
+- Cleanup reset `fridge_male_ward` to `status = 'offline'`, `last_seen_at = null` with HTTP 204.
+
+Remaining Phase 3 work:
+
+1. Add duplicate-reading handling or an explicit idempotency policy.
+2. Decide and test delayed-reading retry behavior for queued gateway uploads.
+3. Add deterministic abnormal simulator scenarios: high fridge, low fridge, short door excursion,
+   high humidity, smoke/fire signal, invalid sensor value, offline device, and network retry.
+4. Consider whether physical devices need per-device credentials instead of the single
+   `SIMULATOR_DEVICE_KEY`.
+5. Add a longer live simulator run against hosted Supabase once the user wants real sample telemetry
+   retained for dashboard work.
+
+Dashboard migration note:
+
+- React was removed from `apps/dashboard`.
+- The dashboard now uses `index.html`, `src/dashboard.js`, `src/dashboardData.js`, `src/styles.css`,
+  and Chart.js.
+- The browser polls `GET /api/v1/dashboard`; it does not talk directly to Supabase and exposes no
+  write, acknowledgement, configuration, or login controls.
 
 ## Safety Boundary
 

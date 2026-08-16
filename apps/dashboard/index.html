@@ -8,7 +8,81 @@
     <title>IHC Monitor</title>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-mark" aria-hidden="true">IH</div>
+        <div>
+          <p class="eyebrow">Institute Health Centre</p>
+          <h1>Environmental Monitor</h1>
+        </div>
+        <div class="service-chip">
+          <span class="service-dot" aria-hidden="true"></span>
+          <span data-service-state>Connecting</span>
+        </div>
+      </header>
+
+      <main>
+        <section class="overview" aria-labelledby="dashboard-title">
+          <div>
+            <p class="section-kicker">Live dashboard</p>
+            <h2 id="dashboard-title">Medicine fridges and room conditions</h2>
+          </div>
+          <p data-last-updated>Waiting for first refresh</p>
+        </section>
+
+        <section class="summary-grid" aria-label="Monitoring summary">
+          <article>
+            <span>Online devices</span>
+            <strong data-online-count>0</strong>
+          </article>
+          <article>
+            <span>Offline devices</span>
+            <strong data-offline-count>0</strong>
+          </article>
+          <article>
+            <span>Active alerts</span>
+            <strong data-active-alerts>0</strong>
+          </article>
+        </section>
+
+        <aside class="error-banner" data-error-banner hidden>
+          Dashboard data is not reachable. Check that the API is running on port 4000.
+        </aside>
+
+        <section class="device-section" aria-labelledby="devices-title">
+          <div class="section-heading">
+            <h2 id="devices-title">Devices</h2>
+          </div>
+          <div class="device-grid" data-device-grid></div>
+        </section>
+
+        <section class="content-grid">
+          <section class="chart-panel" aria-labelledby="trend-title">
+            <div class="section-heading">
+              <h2 id="trend-title">Recent trends</h2>
+            </div>
+            <div class="chart-frame">
+              <canvas
+                id="trend-chart"
+                aria-label="Recent temperature and humidity readings"
+              ></canvas>
+            </div>
+          </section>
+
+          <section class="alerts-panel" aria-labelledby="alerts-title">
+            <div class="section-heading">
+              <h2 id="alerts-title">Active alerts</h2>
+            </div>
+            <div data-alert-list></div>
+          </section>
+        </section>
+      </main>
+
+      <footer>
+        <span>IHC Automation</span>
+        <span>Public read-only monitoring</span>
+      </footer>
+    </div>
+    <script type="module" src="/src/dashboard.js"></script>
   </body>
 </html>

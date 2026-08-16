@@ -29,8 +29,6 @@
     "@eslint/js": "^9.33.0",
     "concurrently": "^9.2.0",
     "eslint": "^9.33.0",
-    "eslint-plugin-react-hooks": "^5.2.0",
-    "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.3.0",
     "prettier": "^3.6.2",
     "supabase": "^2.114.0",

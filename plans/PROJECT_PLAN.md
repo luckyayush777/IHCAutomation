@@ -94,11 +94,11 @@ Sensors must not connect directly to the database. They send readings to an inge
 | Area              | Initial choice                                    | Reason                                                                           |
 | ----------------- | ------------------------------------------------- | -------------------------------------------------------------------------------- |
 | Database          | Supabase PostgreSQL                               | Managed SQL database with authentication and realtime support                    |
-| Frontend          | React with Vite and TypeScript                    | Lightweight responsive dashboard with a fast development cycle                   |
-| Charts            | Recharts                                          | Straightforward time-series charts for React                                     |
+| Frontend          | Plain HTML, CSS, JavaScript, and Vite             | Lightweight public dashboard without a component framework                       |
+| Charts            | Chart.js                                          | Straightforward time-series charts with minimal browser JavaScript               |
 | Backend           | Node.js with Express and TypeScript               | Small ingestion and alert-processing API using the same language as the frontend |
 | Simulator         | Node.js TypeScript script                         | Shares data types and validation rules with the backend                          |
-| Live updates      | Supabase Realtime or short polling                | Keeps dashboard readings current                                                 |
+| Live updates      | Short polling through the Express API             | Keeps dashboard readings current without exposing write credentials              |
 | Local development | Supabase cloud project plus environment variables | Fastest prototype setup                                                          |
 | Hosting           | Decide after the local prototype                  | Depends on institute policy and deployment preference                            |
 
@@ -340,6 +340,13 @@ access was verified with a temporary write/delete probe.
 **Completion criteria:** migrations can create the database from scratch, anonymous clients can read dashboard data, and browser clients cannot create or modify telemetry.
 
 ### Phase 3: Ingestion API and simulator
+
+**Status:** In progress on 16 August 2026. The shared ingestion contract, authenticated
+`POST /api/v1/readings` API route, Supabase-backed reading storage, device heartbeat update, and
+deterministic normal simulator batches have been added. A hosted integration probe successfully
+stored one refrigerator reading through the API and cleaned it up afterward. Remaining Phase 3 work
+includes broader live simulator soak testing, duplicate handling, delayed-reading behavior, and
+abnormal scenario controls.
 
 - Implement device authentication and reading validation.
 - Store valid readings and update device heartbeat information.

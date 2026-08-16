@@ -1,18 +1,16 @@
 # IHC Automation
 
-Environmental and medicine-fridge monitoring for the institute health centre. The first software
-milestone provides three independently runnable TypeScript applications and a shared health
-contract. Supabase storage and public read-only access are introduced in Phase 2. The dashboard
-remains public in the prototype; browser clients can read approved monitoring data but cannot write
-to the database.
+Environmental and medicine-fridge monitoring for the institute health centre. The system collects
+sensor readings through the API, stores them in Supabase Postgres, and displays public read-only
+status on a lightweight dashboard built with plain HTML, CSS, JavaScript, and Chart.js.
 
-## Phase 1 services
+## Local services
 
-| Service   | Package          | Local address                  | Purpose in Phase 1                         |
-| --------- | ---------------- | ------------------------------ | ------------------------------------------ |
-| Dashboard | `@ihc/dashboard` | <http://localhost:5173>        | Shows local service readiness              |
-| API       | `@ihc/api`       | <http://localhost:4000/health> | Exposes the ingestion service health check |
-| Simulator | `@ihc/simulator` | <http://localhost:4100/health> | Exposes simulator process health           |
+| Service   | Package          | Local address                  | Purpose                               |
+| --------- | ---------------- | ------------------------------ | ------------------------------------- |
+| Dashboard | `@ihc/dashboard` | <http://localhost:5173>        | Public read-only monitoring dashboard |
+| API       | `@ihc/api`       | <http://localhost:4000/health> | Ingestion and dashboard data API      |
+| Simulator | `@ihc/simulator` | <http://localhost:4100/health> | Simulated sensor process              |
 
 The simulator does not generate sensor readings yet. That begins after the Phase 2 database is
 ready, so Phase 3 can send readings through the ingestion API.
@@ -33,8 +31,8 @@ Copy-Item .env.example .env
 npm.cmd run dev
 ```
 
-Open <http://localhost:5173>. When all three processes are running, the dashboard changes both
-service indicators to `online` automatically.
+Open <http://localhost:5173>. The dashboard polls the API and shows device status, recent readings,
+active alerts, and Chart.js trends.
 
 Run a single application when needed:
 
@@ -50,7 +48,7 @@ npm.cmd run dev:simulator
 npm.cmd run format:check
 npm.cmd run lint
 npm.cmd run typecheck
-npm.cmd test
+npm.cmd run test
 npm.cmd run build
 ```
 
@@ -86,13 +84,55 @@ With the Supabase CLI installed and linked to the hosted project, apply the sche
 npx.cmd supabase db push --include-seed
 ```
 
+## Reading ingestion
+
+The Phase 3 ingestion endpoint accepts simulator or device readings through the API only:
+
+```http
+POST /api/v1/readings
+Authorization: Bearer <SIMULATOR_DEVICE_KEY>
+Content-Type: application/json
+```
+
+Example payload:
+
+```json
+{
+  "contractVersion": 1,
+  "deviceCode": "fridge_male_ward",
+  "readings": [
+    {
+      "metric": "temperature",
+      "value": 4.2,
+      "unit": "celsius",
+      "quality": "good",
+      "recordedAt": "2026-08-16T10:30:00.000Z"
+    }
+  ]
+}
+```
+
+The API uses `SUPABASE_SECRET_KEY` server-side to store valid readings and update device heartbeat
+state. The simulator uses `SIMULATOR_DEVICE_KEY`; it never needs Supabase database keys.
+
+## Dashboard data
+
+The browser reads from the API only:
+
+```http
+GET /api/v1/dashboard
+```
+
+The endpoint returns devices, recent readings, enabled alert rules, and recent alerts as one compact
+snapshot. The public dashboard contains no write, acknowledgement, configuration, or login controls.
+
 ## Repository map
 
 ```text
 IHCAutomation/
 |-- apps/
 |   |-- api/                 Express service
-|   `-- dashboard/           React and Vite interface
+|   `-- dashboard/           Plain HTML/CSS/JS and Chart.js interface
 |-- docs/                    Implementation checklists
 |-- packages/
 |   `-- shared/              Cross-service TypeScript contracts
