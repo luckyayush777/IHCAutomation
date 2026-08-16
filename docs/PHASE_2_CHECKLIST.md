@@ -26,7 +26,7 @@ From the Supabase project's API settings, copy these values into the local `.env
 ```dotenv
 SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_PUBLISHABLE_KEY=your-publishable-or-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-or-secret-key
+SUPABASE_SECRET_KEY=your-server-only-secret-key
 ```
 
 The publishable key will be used by the public read-only dashboard. This key is safe to place in a
@@ -80,12 +80,14 @@ Examples are `Vaccine Refrigerator`, `Medicine Refrigerator`, `Consultation Room
 
 Once the project exists and the local `.env` values are present, the repository work is:
 
-- Supabase CLI configuration and repeatable SQL migrations;
-- `devices`, `readings`, `alert_rules`, and `alerts` tables;
-- data types, foreign keys, checks, uniqueness constraints, and query indexes;
-- two refrigerator devices and four room devices in development seed data;
-- Row Level Security on every exposed table;
-- anonymous read-only policies and server-only telemetry write policies;
+- [x] Supabase CLI configuration and repeatable SQL migrations;
+- [x] `devices`, `readings`, `alert_rules`, and `alerts` tables;
+- [x] data types, foreign keys, checks, uniqueness constraints, and query indexes;
+- [x] two refrigerator devices and four room devices in development seed data;
+- [x] Row Level Security on every exposed table;
+- [x] anonymous read-only policies for dashboard access, with anonymous writes blocked;
+- [ ] apply the migration and seed data to the hosted Supabase project;
+- [ ] verify live anonymous reads and blocked browser-side writes against the hosted project;
 - no login or account-management screens in the prototype;
 - database tests proving anonymous clients can read approved dashboard data but cannot insert,
   update, or delete records;

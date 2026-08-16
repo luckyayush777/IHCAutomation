@@ -326,6 +326,10 @@ tests, production builds, environment templates, and local startup instructions 
 
 ### Phase 2: Supabase setup
 
+**Status:** In progress on 16 August 2026. Repository migration, seed data, Supabase CLI config, and
+schema/RLS structure tests have been added. Live hosted-project application and RLS verification are
+still pending because the local Supabase CLI and `psql` are not installed in this workspace.
+
 - Create a Supabase project.
 - Add database migrations for core tables, constraints, and indexes.
 - Add initial simulated devices.

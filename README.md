@@ -1,8 +1,10 @@
 # IHC Automation
 
-Environmental and medicine-fridge monitoring for the institute health centre. The first
-software milestone provides three independently runnable TypeScript applications and a shared
-health contract. Supabase storage and public read-only access are introduced in Phase 2.
+Environmental and medicine-fridge monitoring for the institute health centre. The first software
+milestone provides three independently runnable TypeScript applications and a shared health
+contract. Supabase storage and public read-only access are introduced in Phase 2. The dashboard
+remains public in the prototype; browser clients can read approved monitoring data but cannot write
+to the database.
 
 ## Phase 1 services
 
@@ -56,12 +58,34 @@ Run every check in sequence with `npm.cmd run check`.
 
 ## Environment variables
 
-Copy `.env.example` to `.env` for local values. The `.env` file and all other environment files
-are ignored by Git. Never place the Supabase service-role key in dashboard source code, device
-firmware, a commit, screenshot, or chat message.
+Create a local `.env` for machine-specific values. The `.env` file and all other environment files
+are ignored by Git. Never place the Supabase secret key in dashboard source code, device firmware, a
+commit, screenshot, or chat message.
 
-The applications have safe local defaults for Phase 1. Supabase values remain placeholders
-until Phase 2.
+Known Supabase variables for Phase 2 are:
+
+```dotenv
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_PUBLISHABLE_KEY=your-publishable-or-anon-key
+SUPABASE_SECRET_KEY=your-server-only-secret-key
+SUPABASE_JWKS_URL=https://your-project-ref.supabase.co/auth/v1/.well-known/jwks.json
+SUPABASE_DB_PASSWORD=your-database-password
+```
+
+The publishable key is safe for the public dashboard only because Row Level Security grants
+anonymous clients read-only access. `SUPABASE_SECRET_KEY` is server-only.
+
+## Supabase setup
+
+The phase 2 schema lives in `supabase/migrations/20260816093000_initial_monitoring_schema.sql`.
+Development seed data lives in `supabase/seed.sql`.
+
+With the Supabase CLI installed and linked to the hosted project, apply the schema and seeds with:
+
+```powershell
+supabase db push
+supabase db seed
+```
 
 ## Repository map
 
@@ -77,14 +101,14 @@ IHCAutomation/
 |-- supabase/
 |   |-- migrations/          Phase 2 database migrations
 |   `-- seed.sql             Phase 2 development devices and rules
-|-- .env.example
-|-- HARDWARE_AND_BUDGET.md
-|-- PROJECT_PLAN.md
+|-- plans/
+|   |-- HARDWARE_AND_BUDGET.md
+|   `-- PROJECT_PLAN.md
 `-- README.md
 ```
 
 ## Project documents
 
-- [Full project plan](PROJECT_PLAN.md)
-- [Hardware and budget guide](HARDWARE_AND_BUDGET.md)
+- [Full project plan](plans/PROJECT_PLAN.md)
+- [Hardware and budget guide](plans/HARDWARE_AND_BUDGET.md)
 - [Phase 2 checklist](docs/PHASE_2_CHECKLIST.md)
