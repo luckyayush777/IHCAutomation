@@ -9,6 +9,10 @@ const migration = readFileSync(
   join(rootDir, 'supabase', 'migrations', '20260816093000_initial_monitoring_schema.sql'),
   'utf8',
 );
+const alertEngineMigration = readFileSync(
+  join(rootDir, 'supabase', 'migrations', '20260817120000_add_alert_engine.sql'),
+  'utf8',
+);
 const seed = readFileSync(join(rootDir, 'supabase', 'seed.sql'), 'utf8');
 
 describe('Supabase monitoring schema', () => {
@@ -56,5 +60,24 @@ describe('Supabase monitoring schema', () => {
     expect(seed).toContain('2.000');
     expect(seed).toContain('5.000');
     expect(seed).toContain('600');
+    expect(seed).toContain("'heartbeat' as metric");
+    expect(seed).toContain("'humidity' as metric");
+    expect(seed).toContain("'detector_alarm' as metric");
+  });
+
+  it('persists alert condition timing and keeps evaluation server-only', () => {
+    expect(alertEngineMigration).toContain('create table public.alert_condition_states');
+    expect(alertEngineMigration).toContain(
+      'create or replace function public.evaluate_device_alerts',
+    );
+    expect(alertEngineMigration).toContain(
+      'create or replace function public.evaluate_offline_alerts',
+    );
+    expect(alertEngineMigration).toContain('recovery_started_at');
+    expect(alertEngineMigration).toContain('hysteresis_value');
+    expect(alertEngineMigration).toContain(
+      'revoke all on function public.evaluate_device_alerts(uuid, timestamptz) from public, anon, authenticated',
+    );
+    expect(alertEngineMigration).toMatch(/status in \('active', 'acknowledged'\)/);
   });
 });

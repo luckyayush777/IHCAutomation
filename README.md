@@ -12,8 +12,8 @@ status on a lightweight dashboard built with plain HTML, CSS, JavaScript, and Ch
 | API       | `@ihc/api`       | <http://localhost:4000/health> | Ingestion and dashboard data API      |
 | Simulator | `@ihc/simulator` | <http://localhost:4100/health> | Simulated sensor process              |
 
-The simulator does not generate sensor readings yet. That begins after the Phase 2 database is
-ready, so Phase 3 can send readings through the ingestion API.
+The simulator generates deterministic normal and failure scenarios through the same authenticated
+ingestion contract planned for the ESP32 devices.
 
 ## Requirements
 
@@ -124,6 +124,26 @@ SIMULATOR_RETRY_ATTEMPTS=1
 
 Available scenarios are `normal`, `high_fridge`, `low_fridge`, `door_excursion`, `high_humidity`,
 `smoke_signal`, `invalid_sensor`, and `offline_device`.
+
+For local demonstrations, add this to `.env`:
+
+```dotenv
+SIMULATOR_CONTROL_ENABLED=true
+```
+
+Then open <http://localhost:5173/simulation.html> to start or stop a scenario and choose its send
+interval. These controls are served separately from the public dashboard and return 404 unless the
+flag is explicitly enabled. The simulator binds to `127.0.0.1` by default and retains the ingestion
+credential; it is never exposed to the browser.
+
+## Alert evaluation
+
+Alert rules are evaluated server-side after valid readings are stored. Refrigerator and humidity
+conditions must persist for the configured duration, recovery must remain inside a hysteresis
+margin for its configured duration, and only one alert can remain open for a device/rule pair. The
+API also checks heartbeats every 30 seconds and marks a device offline after five minutes without a
+reading. Detector-alarm rules use the approved alarm-state signal rather than an arbitrary smoke
+PPM threshold.
 
 ## Dashboard data
 

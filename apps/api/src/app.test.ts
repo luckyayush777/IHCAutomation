@@ -6,6 +6,8 @@ import { SupabaseMonitoringStore, type MonitoringStore } from './monitoringStore
 
 class FakeMonitoringStore implements MonitoringStore {
   readonly stored: Array<{ deviceId: string; receivedAt: string; readingCount: number }> = [];
+  readonly evaluatedDevices: Array<{ deviceId: string; evaluatedAt: string }> = [];
+  readonly offlineEvaluations: Array<{ evaluatedAt: string; deviceId?: string }> = [];
 
   constructor(
     private readonly devices = new Map([
@@ -19,6 +21,14 @@ class FakeMonitoringStore implements MonitoringStore {
 
   async storeReadings(deviceId: string, requestBody: { readings: unknown[] }, receivedAt: string) {
     this.stored.push({ deviceId, receivedAt, readingCount: requestBody.readings.length });
+  }
+
+  async evaluateDeviceAlerts(deviceId: string, evaluatedAt: string) {
+    this.evaluatedDevices.push({ deviceId, evaluatedAt });
+  }
+
+  async evaluateOfflineAlerts(evaluatedAt: string, deviceId?: string) {
+    this.offlineEvaluations.push({ evaluatedAt, deviceId });
   }
 
   async getDashboardSnapshot(generatedAt: string) {
@@ -142,6 +152,9 @@ describe('reading ingestion endpoint', () => {
         readingCount: 1,
         receivedAt: '2026-08-16T09:30:00.000Z',
       },
+    ]);
+    expect(store.evaluatedDevices).toEqual([
+      { deviceId: 'device-1', evaluatedAt: '2026-08-16T09:30:00.000Z' },
     ]);
   });
 
@@ -300,5 +313,29 @@ describe('Supabase monitoring storage', () => {
     expect(calls[1]).toContain('device_id=in.%28device-1%29');
     expect(calls[1]).toContain('recorded_at=gte.2026-08-16T09%3A00%3A00.000Z');
     expect(calls[1]).toContain('recorded_at=lte.2026-08-16T10%3A00%3A00.000Z');
+  });
+
+  it('evaluates reading and heartbeat rules through server-only RPCs', async () => {
+    const calls: Array<{ path: string; body: string | undefined }> = [];
+    const fetcher = async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ path: String(url), body: init?.body as string | undefined });
+      return new Response(null, { status: 204 });
+    };
+    const store = new SupabaseMonitoringStore(
+      'https://example.supabase.co',
+      'server-secret',
+      fetcher,
+    );
+
+    await store.evaluateDeviceAlerts('device-1', '2026-08-16T10:00:00.000Z');
+
+    expect(calls.map((call) => call.path)).toEqual([
+      'https://example.supabase.co/rest/v1/rpc/evaluate_device_alerts',
+      'https://example.supabase.co/rest/v1/rpc/evaluate_offline_alerts',
+    ]);
+    expect(JSON.parse(calls[1]?.body ?? '{}')).toEqual({
+      p_evaluated_at: '2026-08-16T10:00:00.000Z',
+      p_device_id: 'device-1',
+    });
   });
 });

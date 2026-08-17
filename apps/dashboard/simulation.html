@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f4f7f8" />
+    <meta name="description" content="Local IHC sensor simulation controls" />
+    <title>IHC Simulation Lab</title>
+  </head>
+  <body>
+    <div class="simulation-shell">
+      <header class="simulation-header">
+        <div>
+          <p class="section-kicker">Local testing panel</p>
+          <h1>ESP32 telemetry simulator</h1>
+          <p>
+            These scenarios send the same authenticated payloads used by the planned physical
+            devices. This page cannot control production unless the simulator service is explicitly
+            enabled.
+          </p>
+        </div>
+        <a href="/">Open dashboard</a>
+      </header>
+
+      <main class="simulation-panel">
+        <div class="simulation-status" data-simulation-status>Connecting to simulator…</div>
+        <form data-simulation-form>
+          <label>
+            Scenario
+            <select name="scenario">
+              <option value="normal">Normal operation</option>
+              <option value="high_fridge">High refrigerator temperature</option>
+              <option value="low_fridge">Low refrigerator temperature</option>
+              <option value="door_excursion">Short refrigerator door excursion</option>
+              <option value="high_humidity">Persistent high humidity</option>
+              <option value="smoke_signal">Smoke and detector alarm signal</option>
+              <option value="invalid_sensor">Invalid sensor values</option>
+              <option value="offline_device">One device stops reporting</option>
+            </select>
+          </label>
+          <label>
+            Send every
+            <select name="intervalMs">
+              <option value="5000">5 seconds (demo)</option>
+              <option value="10000">10 seconds</option>
+              <option value="30000">30 seconds</option>
+              <option value="60000">60 seconds (ESP32 target)</option>
+            </select>
+          </label>
+          <div class="simulation-actions">
+            <button type="submit">Start simulation</button>
+            <button type="button" class="secondary" data-stop-simulation>Stop</button>
+          </div>
+        </form>
+        <aside class="simulation-note">
+          Refrigerator rules require ten continuous minutes outside 2–5°C before alerting. Stopping
+          a device creates an offline alert after five minutes. These delays intentionally match the
+          operational rules rather than firing immediately for a demo.
+        </aside>
+      </main>
+    </div>
+    <script type="module" src="/src/simulation.js"></script>
+  </body>
+</html>

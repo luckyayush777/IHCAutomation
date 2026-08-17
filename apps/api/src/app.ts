@@ -131,6 +131,7 @@ export function createApp(options: AppOptions = {}) {
 
       const receivedAt = now().toISOString();
       await monitoringStore.storeReadings(device.id, validation.value, receivedAt);
+      await monitoringStore.evaluateDeviceAlerts(device.id, receivedAt);
 
       const payload: ReadingIngestionResponse = {
         contractVersion: INGESTION_CONTRACT_VERSION,

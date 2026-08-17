@@ -1,36 +1,20 @@
 import { config } from 'dotenv';
 
 import { createSimulatorServer } from './server.js';
-import { readSimulatorConfig, sendTelemetryTick } from './telemetry.js';
+import { SimulatorRuntime } from './runtime.js';
+import { readSimulatorConfig } from './telemetry.js';
 
 config({ path: new URL('../../.env', import.meta.url) });
 
 const port = Number(process.env.SIMULATOR_PORT ?? 4100);
-const server = createSimulatorServer();
+const host = process.env.SIMULATOR_HOST ?? '127.0.0.1';
 const simulatorConfig = readSimulatorConfig();
-let telemetryTimer: NodeJS.Timeout | undefined;
-let tick = 0;
+const runtime = new SimulatorRuntime(simulatorConfig);
+const controlEnabled = process.env.SIMULATOR_CONTROL_ENABLED === 'true';
+const server = createSimulatorServer({ runtime, controlEnabled });
 
-async function sendTelemetry() {
-  if (!simulatorConfig) {
-    return;
-  }
-
-  try {
-    const results = await sendTelemetryTick(simulatorConfig, tick);
-    tick += 1;
-    const accepted = results.filter((result) => result.accepted).length;
-    const skipped = results.filter((result) => result.skipped).length;
-    console.log(
-      `Simulator ${simulatorConfig.scenario} tick accepted ${accepted}/${results.length} device batches, skipped ${skipped}`,
-    );
-  } catch (error) {
-    console.error(error instanceof Error ? error.message : 'Simulator telemetry tick failed');
-  }
-}
-
-server.listen(port, () => {
-  console.log(`IHC simulator health service listening at http://localhost:${port}`);
+server.listen(port, host, () => {
+  console.log(`IHC simulator health service listening at http://${host}:${port}`);
 
   if (!simulatorConfig) {
     console.log('Simulator telemetry is disabled until SIMULATOR_DEVICE_KEY is configured.');
@@ -40,15 +24,13 @@ server.listen(port, () => {
   console.log(
     `Simulator ${simulatorConfig.scenario} telemetry posting to ${simulatorConfig.ingestionApiUrl}`,
   );
-  void sendTelemetry();
-  telemetryTimer = setInterval(() => void sendTelemetry(), simulatorConfig.intervalMs);
+  runtime.start();
+  if (controlEnabled) console.log('Local simulation controls are enabled.');
 });
 
 function shutDown(signal: string) {
   console.log(`${signal} received, closing simulator service`);
-  if (telemetryTimer) {
-    clearInterval(telemetryTimer);
-  }
+  runtime.stop();
   server.close(() => process.exit(0));
 }
 

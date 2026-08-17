@@ -1,15 +1,17 @@
 # Agent Handoff: IHC Automation
 
-Last updated: 16 August 2026
+Last updated: 17 August 2026
 
 ## Read This First
 
 This repository is an IoT environmental-monitoring project for an institute health centre. The
 software prototype monitors two medicine refrigerators and four rooms, stores telemetry in
-Supabase, displays it on a responsive dashboard, and will later generate local and remote alerts.
+Supabase, displays it on a responsive dashboard, and generates persisted dashboard alerts.
 
-Phase 1 and Phase 2 are complete. The hosted Supabase project has the initial monitoring schema,
-seed devices, refrigerator alert rules, and public read-only RLS boundary applied and verified.
+Phases 1 through 5 are complete. The hosted Supabase project has the monitoring schema, seed
+devices and rules, alert engine, and public read-only RLS boundary applied and verified. The
+dashboard has a public overview and device-specific historical views; notifications remain a later
+phase.
 
 Do not reintroduce dashboard login in the prototype. The user explicitly removed that requirement.
 The dashboard must be publicly readable without an account, while all browser-side writes remain
@@ -128,12 +130,14 @@ Local services:
 
 | Service          | URL                                      |
 | ---------------- | ---------------------------------------- |
-| Dashboard        | `http://127.0.0.1:5173`                  |
+| Dashboard        | `http://localhost:5173`                  |
 | API health       | `http://localhost:4000/health`           |
 | Dashboard API    | `http://localhost:4000/api/v1/dashboard` |
 | Simulator health | `http://localhost:4100/health`           |
 
-The simulator only exposes its health endpoint today. Telemetry generation belongs to Phase 3.
+The simulator posts telemetry after startup when `SIMULATOR_DEVICE_KEY` is configured. Use the
+dashboard through `http://localhost:5173` while the local `.env` allows that origin; `localhost`
+and `127.0.0.1` are distinct browser origins for CORS.
 
 ## Phase 1 Verification
 
@@ -294,6 +298,50 @@ Dashboard migration note:
 - Vite dev dependency optimization for Chart.js is disabled in `apps/dashboard/vite.config.ts`
   because the managed Windows filesystem blocked esbuild while pre-bundling Chart.js. Production
   builds pass with the current config.
+
+## Phase 4 Status
+
+Phase 4 is complete. The public dashboard remains read-only and has no login, configuration, or
+device-management controls.
+
+Completed in Phase 4:
+
+- Device cards provide a live overview of all six seeded monitors, including current metrics,
+  online/offline/attention status, active-alert count, and last-seen time.
+- Selecting a device opens its focused detail view with a device-specific alert list, current
+  reading, refrigerator range where applicable, and temperature/humidity min, average, and max.
+- Historical chart periods can be selected as 1 hour, 24 hours, 7 days, or a custom start/end
+  period.
+- `GET /api/v1/dashboard` accepts optional `deviceCode`, `from`, and `to` parameters. The API
+  validates time bounds and uses them to query device-specific, bounded reading history through
+  its server-side Supabase store.
+- The dashboard visibly handles loading, empty-device, stale/offline, and API-unreachable states.
+- Targeted verification passed on 17 August 2026: 12 API tests, 2 dashboard tests, API and
+  dashboard production builds, and lint/Prettier checks for changed application files.
+
+Current local-development note:
+
+- If `npm.cmd run dev` terminates immediately, check for an existing process already using port 4100. The simulator reports `EADDRINUSE`, and the root `concurrently --kill-others-on-fail`
+  script then stops the API on port 4000 as well.
+
+## Phase 5 Status
+
+Phase 5 is complete and applied to hosted Supabase.
+
+- `20260817120000_add_alert_engine.sql` adds private persisted condition state, recovery duration,
+  hysteresis, and server-only threshold/offline evaluation functions.
+- Each valid ingestion batch is evaluated after storage. Invalid readings never enter the alert
+  path.
+- The API runs offline evaluation at startup and every 30 seconds by default; override with
+  `OFFLINE_CHECK_INTERVAL_MS` when needed.
+- Seed data now includes 2 refrigerator-temperature rules, 4 room-humidity rules, 4 approved
+  detector-alarm-state rules, and 6 heartbeat rules. No arbitrary smoke-PPM life-safety threshold
+  was introduced.
+- Hosted self-cleaning probes passed for threshold trigger/recovery and offline trigger/recovery.
+- A separate testing UI is available at `http://localhost:5173/simulation.html`. Set
+  `SIMULATOR_CONTROL_ENABLED=true` locally to enable start/stop/scenario controls. The public
+  dashboard remains read-only, and the simulator still sends the ESP32-compatible ingestion
+  contract through the API.
 
 ## Safety Boundary
 

@@ -36,6 +36,68 @@ describe('simulator health endpoint', () => {
   });
 });
 
+describe('local simulator controls', () => {
+  it('keeps controls unavailable unless explicitly enabled', async () => {
+    const server = createSimulatorServer();
+    openServers.push(server);
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const { port } = server.address() as AddressInfo;
+    const response = await fetch(`http://127.0.0.1:${port}/api/v1/simulation`);
+    expect(response.status).toBe(404);
+  });
+
+  it('starts and stops an enabled runtime with a validated scenario', async () => {
+    let running = false;
+    let scenario = 'normal';
+    const state = () => ({
+      configured: true,
+      running,
+      scenario,
+      intervalMs: 10_000,
+      tick: 0,
+      lastRunAt: null,
+      lastResults: [],
+    });
+    const runtime = {
+      getState: state,
+      start(nextScenario: string) {
+        running = true;
+        scenario = nextScenario;
+        return state();
+      },
+      stop() {
+        running = false;
+        return state();
+      },
+    };
+    const server = createSimulatorServer({
+      controlEnabled: true,
+      runtime: runtime as never,
+    });
+    openServers.push(server);
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const { port } = server.address() as AddressInfo;
+
+    const started = await fetch(`http://127.0.0.1:${port}/api/v1/simulation`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'start', scenario: 'high_fridge', intervalMs: 5000 }),
+    });
+    const startedBody = (await started.json()) as Record<string, unknown>;
+    expect(started.status).toBe(200);
+    expect(startedBody).toMatchObject({ running: true, scenario: 'high_fridge' });
+
+    const stopped = await fetch(`http://127.0.0.1:${port}/api/v1/simulation`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'stop' }),
+    });
+    const stoppedBody = (await stopped.json()) as Record<string, unknown>;
+    expect(stopped.status).toBe(200);
+    expect(stoppedBody.running).toBe(false);
+  });
+});
+
 describe('normal telemetry generation', () => {
   it('creates fridge and room batches using the shared ingestion contract', () => {
     const recordedAt = new Date('2026-08-16T09:30:00.000Z');
@@ -102,6 +164,15 @@ describe('normal telemetry generation', () => {
       retryAttempts: 2,
       scenario: 'high_fridge',
     });
+  });
+
+  it('normalizes a base API URL to the ESP32 ingestion endpoint', () => {
+    const config = readSimulatorConfig({
+      SIMULATOR_DEVICE_KEY: 'test-token',
+      INGESTION_API_URL: 'http://localhost:4000',
+    });
+
+    expect(config?.ingestionApiUrl).toBe('http://localhost:4000/api/v1/readings');
   });
 
   it('creates deterministic abnormal scenario batches', () => {

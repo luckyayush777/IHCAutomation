@@ -71,6 +71,8 @@ export interface MonitoringStore {
     request: ReadingIngestionRequest,
     receivedAt: string,
   ): Promise<void>;
+  evaluateDeviceAlerts(deviceId: string, evaluatedAt: string): Promise<void>;
+  evaluateOfflineAlerts(evaluatedAt: string, deviceId?: string): Promise<void>;
   getDashboardSnapshot(generatedAt: string, query?: DashboardQuery): Promise<DashboardSnapshot>;
 }
 
@@ -125,6 +127,26 @@ export class SupabaseMonitoringStore implements MonitoringStore {
       body: JSON.stringify({
         last_seen_at: receivedAt,
         status: 'online',
+      }),
+    });
+  }
+
+  async evaluateDeviceAlerts(deviceId: string, evaluatedAt: string): Promise<void> {
+    await this.request('rpc/evaluate_device_alerts', {
+      method: 'POST',
+      headers: { prefer: 'return=minimal' },
+      body: JSON.stringify({ p_device_id: deviceId, p_evaluated_at: evaluatedAt }),
+    });
+    await this.evaluateOfflineAlerts(evaluatedAt, deviceId);
+  }
+
+  async evaluateOfflineAlerts(evaluatedAt: string, deviceId?: string): Promise<void> {
+    await this.request('rpc/evaluate_offline_alerts', {
+      method: 'POST',
+      headers: { prefer: 'return=minimal' },
+      body: JSON.stringify({
+        p_evaluated_at: evaluatedAt,
+        p_device_id: deviceId ?? null,
       }),
     });
   }

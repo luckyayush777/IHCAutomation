@@ -39,7 +39,7 @@ const roomDevices = new Set<DeviceCode>([
   'female_ward',
 ]);
 
-const simulatorScenarios: readonly SimulatorScenario[] = [
+export const SIMULATOR_SCENARIOS: readonly SimulatorScenario[] = [
   'normal',
   'high_fridge',
   'low_fridge',
@@ -133,13 +133,15 @@ export function createNormalReadingBatch(
 
 function parseScenario(value: string | undefined): SimulatorScenario {
   if (!value) return 'normal';
-  if (simulatorScenarios.includes(value as SimulatorScenario)) return value as SimulatorScenario;
+  if (SIMULATOR_SCENARIOS.includes(value as SimulatorScenario)) return value as SimulatorScenario;
 
   return 'normal';
 }
 
 export function readSimulatorConfig(env = process.env): SimulatorConfig | null {
-  const ingestionApiUrl = env.INGESTION_API_URL ?? 'http://localhost:4000/api/v1/readings';
+  const configuredApiUrl = env.INGESTION_API_URL ?? 'http://localhost:4000/api/v1/readings';
+  const ingestionApiUrl = new URL(configuredApiUrl);
+  if (ingestionApiUrl.pathname === '/') ingestionApiUrl.pathname = '/api/v1/readings';
   const deviceToken = env.SIMULATOR_DEVICE_KEY;
   const intervalMs = Number(env.SIMULATOR_INTERVAL_MS ?? 60_000);
   const retryAttempts = Number(env.SIMULATOR_RETRY_ATTEMPTS ?? 1);
@@ -155,7 +157,7 @@ export function readSimulatorConfig(env = process.env): SimulatorConfig | null {
   }
 
   return {
-    ingestionApiUrl,
+    ingestionApiUrl: ingestionApiUrl.toString(),
     deviceToken,
     intervalMs,
     retryAttempts,

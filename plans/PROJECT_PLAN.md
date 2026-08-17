@@ -359,6 +359,12 @@ readings have a tested 24-hour acceptance window, and invalid readings are handl
 
 ### Phase 4: Dashboard
 
+**Status:** Completed on 17 August 2026. The public dashboard now provides a live device overview,
+clear online/offline and attention states, selectable device detail, device-specific alerts, and
+historical temperature/humidity views for 1-hour, 24-hour, 7-day, or custom periods. The Express
+dashboard endpoint supports bounded time and device filters so historical views do not require
+browser access to Supabase. Loading, empty, and API-unreachable states are visible to the user.
+
 - Build the overview and device-detail screens.
 - Add historical charts and time-range selection.
 - Add loading, disconnected, stale, empty, and error states.
@@ -367,6 +373,12 @@ readings have a tested 24-hour acceptance window, and invalid readings are handl
 **Completion criteria:** staff can identify every device's current condition and inspect its recent history.
 
 ### Phase 5: Alert engine
+
+**Status:** Completed on 17 August 2026. Valid ingested readings now invoke server-only alert
+evaluation. Persistent condition state supports configured trigger delays, hysteresis, recovery
+delays, automatic resolution, and one open alert per device/rule. The API checks device heartbeats
+every 30 seconds and creates offline alerts after five minutes. Hosted transactional probes verified
+both threshold and offline trigger/recovery paths and removed their test data afterward.
 
 - Evaluate configurable rules outside the frontend.
 - Add duration and recovery behavior.
