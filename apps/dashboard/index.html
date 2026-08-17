@@ -48,30 +48,45 @@
         <aside class="error-banner" data-error-banner hidden>
           Dashboard data is not reachable. Check that the API is running on port 4000.
         </aside>
+        <aside class="loading-banner" data-loading-banner>Loading current monitoring data…</aside>
 
         <section class="device-section" aria-labelledby="devices-title">
           <div class="section-heading">
             <h2 id="devices-title">Devices</h2>
           </div>
-          <div class="device-grid" data-device-grid></div>
+          <div class="device-grid" data-device-grid aria-live="polite"></div>
         </section>
 
         <section class="content-grid">
-          <section class="chart-panel" aria-labelledby="trend-title">
+          <section class="chart-panel" aria-labelledby="detail-title">
             <div class="section-heading">
-              <h2 id="trend-title">Recent trends</h2>
+              <div>
+                <p class="section-kicker">Device detail</p>
+                <h2 id="detail-title" data-detail-title>Select a device</h2>
+              </div>
+              <div class="range-controls" aria-label="History period">
+                <button type="button" data-range-hours="1">1h</button>
+                <button type="button" data-range-hours="24" class="is-selected">24h</button>
+                <button type="button" data-range-hours="168">7d</button>
+              </div>
             </div>
+            <form class="custom-range" data-custom-range-form>
+              <label>From <input type="datetime-local" name="from" required /></label>
+              <label>To <input type="datetime-local" name="to" required /></label>
+              <button type="submit">Apply</button>
+            </form>
+            <dl class="detail-summary" data-detail-summary></dl>
             <div class="chart-frame">
               <canvas
                 id="trend-chart"
-                aria-label="Recent temperature and humidity readings"
+                aria-label="Selected device temperature and humidity history"
               ></canvas>
             </div>
           </section>
 
           <section class="alerts-panel" aria-labelledby="alerts-title">
             <div class="section-heading">
-              <h2 id="alerts-title">Active alerts</h2>
+              <h2 id="alerts-title">Device alerts</h2>
             </div>
             <div data-alert-list></div>
           </section>

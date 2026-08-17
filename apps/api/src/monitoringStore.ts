@@ -58,6 +58,12 @@ export interface DashboardSnapshot {
   alerts: DashboardAlertRecord[];
 }
 
+export interface DashboardQuery {
+  deviceCode?: string;
+  from?: string;
+  to?: string;
+}
+
 export interface MonitoringStore {
   findDeviceByCode(deviceCode: string): Promise<DeviceRecord | null>;
   storeReadings(
@@ -65,7 +71,7 @@ export interface MonitoringStore {
     request: ReadingIngestionRequest,
     receivedAt: string,
   ): Promise<void>;
-  getDashboardSnapshot(generatedAt: string): Promise<DashboardSnapshot>;
+  getDashboardSnapshot(generatedAt: string, query?: DashboardQuery): Promise<DashboardSnapshot>;
 }
 
 interface SupabaseDeviceResponse {
@@ -123,29 +129,44 @@ export class SupabaseMonitoringStore implements MonitoringStore {
     });
   }
 
-  async getDashboardSnapshot(generatedAt: string): Promise<DashboardSnapshot> {
-    const [devicesResponse, readingsResponse, alertRulesResponse, alertsResponse] =
-      await Promise.all([
-        this.request(
-          'devices?select=id,device_code,name,location,device_type,status,last_seen_at&order=device_code.asc',
-          { method: 'GET' },
-        ),
-        this.request(
-          'readings?select=id,device_id,metric,value,unit,quality,recorded_at,received_at&order=recorded_at.desc&limit=240',
-          { method: 'GET' },
-        ),
-        this.request(
-          'alert_rules?select=id,name,device_id,metric,minimum_value,maximum_value,duration_seconds,severity,enabled&enabled=eq.true&order=name.asc',
-          { method: 'GET' },
-        ),
-        this.request(
-          'alerts?select=id,rule_id,device_id,status,message,trigger_value,triggered_at,acknowledged_at,resolved_at&order=triggered_at.desc&limit=50',
-          { method: 'GET' },
-        ),
-      ]);
+  async getDashboardSnapshot(
+    generatedAt: string,
+    query: DashboardQuery = {},
+  ): Promise<DashboardSnapshot> {
+    const deviceQuery = new URLSearchParams({
+      select: 'id,device_code,name,location,device_type,status,last_seen_at',
+      order: 'device_code.asc',
+    });
+    if (query.deviceCode) deviceQuery.set('device_code', `eq.${query.deviceCode}`);
 
-    const [devices, readings, alertRules, alerts] = await Promise.all([
-      devicesResponse.json() as Promise<DashboardDeviceRecord[]>,
+    const devicesResponse = await this.request(`devices?${deviceQuery.toString()}`, {
+      method: 'GET',
+    });
+    const devices = (await devicesResponse.json()) as DashboardDeviceRecord[];
+    const readingsQuery = new URLSearchParams({
+      select: 'id,device_id,metric,value,unit,quality,recorded_at,received_at',
+      order: 'recorded_at.desc',
+      limit: '50000',
+    });
+    if (devices.length > 0)
+      readingsQuery.set('device_id', `in.(${devices.map((device) => device.id).join(',')})`);
+    else readingsQuery.set('id', 'eq.-1');
+    if (query.from) readingsQuery.append('recorded_at', `gte.${query.from}`);
+    if (query.to) readingsQuery.append('recorded_at', `lte.${query.to}`);
+
+    const [readingsResponse, alertRulesResponse, alertsResponse] = await Promise.all([
+      this.request(`readings?${readingsQuery.toString()}`, { method: 'GET' }),
+      this.request(
+        'alert_rules?select=id,name,device_id,metric,minimum_value,maximum_value,duration_seconds,severity,enabled&enabled=eq.true&order=name.asc',
+        { method: 'GET' },
+      ),
+      this.request(
+        'alerts?select=id,rule_id,device_id,status,message,trigger_value,triggered_at,acknowledged_at,resolved_at&order=triggered_at.desc&limit=50',
+        { method: 'GET' },
+      ),
+    ]);
+
+    const [readings, alertRules, alerts] = await Promise.all([
       readingsResponse.json() as Promise<DashboardReadingRecord[]>,
       alertRulesResponse.json() as Promise<DashboardAlertRuleRecord[]>,
       alertsResponse.json() as Promise<DashboardAlertRecord[]>,

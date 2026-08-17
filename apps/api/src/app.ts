@@ -36,6 +36,17 @@ function getAllowedOrigins(): string[] {
   return ['http://localhost:5173', 'http://127.0.0.1:5173'];
 }
 
+function getDashboardQuery(query: express.Request['query']) {
+  const value = (name: 'deviceCode' | 'from' | 'to') => {
+    const raw = query[name];
+    return typeof raw === 'string' && raw.length > 0 ? raw : undefined;
+  };
+  const from = value('from');
+  const to = value('to');
+  if ((from && Number.isNaN(Date.parse(from))) || (to && Number.isNaN(Date.parse(to)))) return null;
+  return { deviceCode: value('deviceCode'), from, to };
+}
+
 export function createApp(options: AppOptions = {}) {
   const app = express();
   const allowedOrigins = getAllowedOrigins();
@@ -67,15 +78,20 @@ export function createApp(options: AppOptions = {}) {
     response.status(200).json(payload);
   });
 
-  app.get('/api/v1/dashboard', async (_request, response, next) => {
+  app.get('/api/v1/dashboard', async (request, response, next) => {
     try {
       if (!monitoringStore) {
         response.status(503).json({ error: 'monitoring store is not configured' });
         return;
       }
 
+      const query = getDashboardQuery(request.query);
+      if (!query) {
+        response.status(400).json({ error: 'from and to must be ISO timestamps' });
+        return;
+      }
       const generatedAt = now().toISOString();
-      const snapshot = await monitoringStore.getDashboardSnapshot(generatedAt);
+      const snapshot = await monitoringStore.getDashboardSnapshot(generatedAt, query);
       response.status(200).json(snapshot);
     } catch (error) {
       next(error);

@@ -94,6 +94,15 @@ describe('dashboard data endpoint', () => {
     expect(response.status).toBe(503);
     expect(response.body).toEqual({ error: 'monitoring store is not configured' });
   });
+
+  it('rejects malformed dashboard history bounds', async () => {
+    const response = await request(
+      createApp({ monitoringStore: new FakeMonitoringStore(), now }),
+    ).get('/api/v1/dashboard?from=not-a-date');
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: 'from and to must be ISO timestamps' });
+  });
 });
 
 describe('reading ingestion endpoint', () => {
@@ -263,5 +272,33 @@ describe('Supabase monitoring storage', () => {
     expect(calls[0]?.init.headers).toMatchObject({
       prefer: 'resolution=ignore-duplicates,return=minimal',
     });
+  });
+
+  it('uses device and bounded history filters for dashboard details', async () => {
+    const calls: string[] = [];
+    const fetcher = async (url: string | URL | Request) => {
+      calls.push(String(url));
+      const body = calls.length === 1 ? [{ id: 'device-1', device_code: 'fridge_male_ward' }] : [];
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+    const store = new SupabaseMonitoringStore(
+      'https://example.supabase.co',
+      'server-secret',
+      fetcher,
+    );
+
+    await store.getDashboardSnapshot('2026-08-16T10:00:00.000Z', {
+      deviceCode: 'fridge_male_ward',
+      from: '2026-08-16T09:00:00.000Z',
+      to: '2026-08-16T10:00:00.000Z',
+    });
+
+    expect(calls[0]).toContain('device_code=eq.fridge_male_ward');
+    expect(calls[1]).toContain('device_id=in.%28device-1%29');
+    expect(calls[1]).toContain('recorded_at=gte.2026-08-16T09%3A00%3A00.000Z');
+    expect(calls[1]).toContain('recorded_at=lte.2026-08-16T10%3A00%3A00.000Z');
   });
 });
