@@ -3,15 +3,20 @@ import Chart from 'chart.js/auto';
 import { buildDashboardModel, formatReading } from './dashboardData.js';
 import './styles.css';
 
-const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
+const apiUrl =
+  import.meta.env.VITE_API_URL ??
+  (window.location.port === '4000' ? window.location.origin : 'http://localhost:4000');
 const dashboardEndpoint = `${apiUrl}/api/v1/dashboard`;
 const refreshIntervalMs = 10_000;
+const snapshotCacheKey = 'ihc-dashboard-snapshot-v1';
 const elements = {
   activeAlerts: document.querySelector('[data-active-alerts]'),
   alertList: document.querySelector('[data-alert-list]'),
   customRangeForm: document.querySelector('[data-custom-range-form]'),
   detailSummary: document.querySelector('[data-detail-summary]'),
   detailTitle: document.querySelector('[data-detail-title]'),
+  doctorsAvailable: document.querySelector('[data-doctors-available]'),
+  doctorGrid: document.querySelector('[data-doctor-grid]'),
   deviceGrid: document.querySelector('[data-device-grid]'),
   errorBanner: document.querySelector('[data-error-banner]'),
   lastUpdated: document.querySelector('[data-last-updated]'),
@@ -20,6 +25,7 @@ const elements = {
   onlineCount: document.querySelector('[data-online-count]'),
   rangeControls: document.querySelector('.range-controls'),
   serviceState: document.querySelector('[data-service-state]'),
+  consoleClock: document.querySelector('[data-console-clock]'),
 };
 const chartContext = document.querySelector('#trend-chart');
 let trendChart;
@@ -54,7 +60,58 @@ async function fetchSnapshot(deviceCode) {
     signal: AbortSignal.timeout(5000),
   });
   if (!response.ok) throw new Error(`Dashboard API returned ${response.status}`);
-  return response.json();
+  const snapshot = await response.json();
+  if (!deviceCode) localStorage.setItem(snapshotCacheKey, JSON.stringify(snapshot));
+  return snapshot;
+}
+function cachedSnapshot() {
+  try {
+    return JSON.parse(localStorage.getItem(snapshotCacheKey));
+  } catch {
+    return null;
+  }
+}
+function renderDoctors(doctors) {
+  if (!elements.doctorGrid) return;
+  if (!doctors.length) {
+    elements.doctorGrid.innerHTML =
+      '<p class="empty-state">The public doctor roster has not been configured.</p>';
+    return;
+  }
+  elements.doctorGrid.innerHTML = doctors
+    .map(
+      (doctor) => `
+        <article class="doctor-card is-${escapeHtml(doctor.availabilityKind)}">
+          <div class="doctor-card__status"><span class="availability-dot" aria-hidden="true"></span>${escapeHtml(doctor.availabilityLabel)}</div>
+          <h3>${escapeHtml(doctor.display_name)}</h3>
+          <p>${escapeHtml(doctor.role)}${doctor.department ? ` · ${escapeHtml(doctor.department)}` : ''}</p>
+          <dl><div><dt>Location</dt><dd>${escapeHtml(doctor.room ?? 'Ask reception')}</dd></div><div><dt>Hours</dt><dd>${escapeHtml(doctor.scheduleLabel)}</dd></div></dl>
+          ${doctor.note ? `<small>${escapeHtml(doctor.note)}</small>` : ''}
+        </article>`,
+    )
+    .join('');
+}
+function renderOverview(snapshot, isCached = false) {
+  overviewModel = buildDashboardModel(snapshot);
+  selectedDeviceCode ??= overviewModel.devices[0]?.device_code;
+  setText(elements.onlineCount, String(overviewModel.summary.online));
+  setText(elements.offlineCount, String(overviewModel.summary.offline));
+  setText(elements.activeAlerts, String(overviewModel.summary.activeAlerts));
+  setText(elements.doctorsAvailable, String(overviewModel.summary.doctorsAvailable));
+  setText(
+    elements.lastUpdated,
+    `${isCached ? 'Offline copy from' : 'Updated'} ${overviewModel.refreshedLabel}`,
+  );
+  setText(
+    elements.serviceState,
+    isCached
+      ? 'Offline copy'
+      : overviewModel.summary.offline > 0
+        ? 'Needs attention'
+        : 'Monitoring live',
+  );
+  renderDoctors(overviewModel.doctors);
+  renderDevices(overviewModel.devices);
 }
 function renderDevices(devices) {
   if (!elements.deviceGrid) return;
@@ -171,23 +228,15 @@ async function selectDevice(deviceCode) {
 async function refreshDashboard() {
   elements.loadingBanner?.removeAttribute('hidden');
   try {
-    overviewModel = buildDashboardModel(await fetchSnapshot());
-    selectedDeviceCode ??= overviewModel.devices[0]?.device_code;
-    setText(elements.onlineCount, String(overviewModel.summary.online));
-    setText(elements.offlineCount, String(overviewModel.summary.offline));
-    setText(elements.activeAlerts, String(overviewModel.summary.activeAlerts));
-    setText(elements.lastUpdated, `Updated ${overviewModel.refreshedLabel}`);
-    setText(
-      elements.serviceState,
-      overviewModel.summary.offline > 0 ? 'Needs attention' : 'Monitoring live',
-    );
-    renderDevices(overviewModel.devices);
+    renderOverview(await fetchSnapshot());
     elements.errorBanner?.setAttribute('hidden', '');
     if (selectedDeviceCode) await selectDevice(selectedDeviceCode);
   } catch (error) {
     console.error(error instanceof Error ? error.message : 'Dashboard refresh failed');
     elements.errorBanner?.removeAttribute('hidden');
-    setText(elements.serviceState, 'API unreachable');
+    const cached = cachedSnapshot();
+    if (cached) renderOverview(cached, true);
+    else setText(elements.serviceState, 'API unreachable');
   } finally {
     elements.loadingBanner?.setAttribute('hidden', '');
   }
@@ -217,5 +266,19 @@ elements.customRangeForm?.addEventListener('submit', (event) => {
     .forEach((button) => button.classList.remove('is-selected'));
   if (selectedDeviceCode) void selectDevice(selectedDeviceCode);
 });
+function updateClock() {
+  if (!elements.consoleClock) return;
+  elements.consoleClock.dateTime = new Date().toISOString();
+  elements.consoleClock.textContent = new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date());
+}
+updateClock();
+window.setInterval(updateClock, 1000);
 void refreshDashboard();
 window.setInterval(() => void refreshDashboard(), refreshIntervalMs);

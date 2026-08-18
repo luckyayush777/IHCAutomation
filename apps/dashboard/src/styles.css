@@ -91,6 +91,17 @@ body {
   font-weight: 750;
 }
 
+.console-clock {
+  margin-left: auto;
+  color: #46585d;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.console-clock + .service-chip {
+  margin-left: 0;
+}
+
 .service-dot {
   width: 9px;
   height: 9px;
@@ -124,6 +135,7 @@ main {
 }
 
 .summary-grid,
+.doctor-grid,
 .device-grid,
 .content-grid {
   display: grid;
@@ -131,11 +143,12 @@ main {
 }
 
 .summary-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   padding-bottom: 24px;
 }
 
 .summary-grid article,
+.doctor-card,
 .device-card,
 .chart-panel,
 .alerts-panel {
@@ -143,6 +156,113 @@ main {
   border-radius: 6px;
   background: #fff;
   box-shadow: 0 1px 2px rgba(25, 42, 48, 0.04);
+}
+
+.doctor-section {
+  padding: 10px 0 30px;
+}
+
+.doctor-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.doctor-card {
+  min-width: 0;
+  padding: 18px;
+  border-top: 5px solid #89979b;
+}
+
+.doctor-card.is-available {
+  border-top-color: #23824e;
+}
+
+.doctor-card.is-on-call,
+.doctor-card.is-appointment {
+  border-top-color: #bd6a16;
+}
+
+.doctor-card h3 {
+  margin: 15px 0 4px;
+  font-size: 19px;
+}
+
+.doctor-card > p,
+.doctor-card > small {
+  color: #617076;
+  font-size: 12px;
+}
+
+.doctor-card > p {
+  margin: 0;
+}
+
+.doctor-card > small {
+  display: block;
+  margin-top: 13px;
+}
+
+.doctor-card__status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #526167;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.availability-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #89979b;
+}
+
+.is-available .availability-dot {
+  background: #23824e;
+  box-shadow: 0 0 0 4px #dcefe3;
+}
+
+.is-on-call .availability-dot,
+.is-appointment .availability-dot {
+  background: #bd6a16;
+  box-shadow: 0 0 0 4px #f8ead5;
+}
+
+.doctor-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 18px 0 0;
+}
+
+.doctor-card dl div {
+  min-width: 0;
+  padding: 10px;
+  background: #f4f7f8;
+}
+
+.doctor-card dt {
+  color: #657278;
+  font-size: 10px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.doctor-card dd {
+  margin: 5px 0 0;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.timezone-label,
+.roster-note {
+  color: #657278;
+  font-size: 12px;
+}
+
+.roster-note {
+  margin: 12px 0 0;
 }
 
 .summary-grid article {
@@ -497,6 +617,11 @@ footer {
 }
 
 @media (max-width: 940px) {
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .doctor-grid,
   .device-grid,
   .content-grid {
     grid-template-columns: 1fr;
@@ -525,6 +650,10 @@ footer {
     display: none;
   }
 
+  .console-clock {
+    margin-left: auto;
+  }
+
   .overview {
     flex-direction: column;
     padding-top: 30px;
@@ -535,6 +664,10 @@ footer {
   }
 
   .summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .doctor-card dl {
     grid-template-columns: 1fr;
   }
 

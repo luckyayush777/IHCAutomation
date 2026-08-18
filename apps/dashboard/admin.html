@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>IHC Roster Administration</title>
+  </head>
+  <body>
+    <main class="admin-shell">
+      <header>
+        <div>
+          <p>Institute Health Centre</p>
+          <h1>Doctor roster administration</h1>
+        </div>
+        <a href="/">Return to public display</a>
+      </header>
+
+      <aside class="security-notice">
+        This page works only from the Raspberry Pi itself. Enter the separate roster admin key; it
+        is retained only for this browser tab. Add public schedule information only—never patient or
+        appointment data.
+      </aside>
+
+      <form class="login-panel" data-login-form>
+        <label
+          >Roster admin key <input type="password" name="token" autocomplete="off" required
+        /></label>
+        <button type="submit">Unlock roster</button>
+      </form>
+
+      <section class="editor" data-editor hidden>
+        <nav class="doctor-list">
+          <div class="list-heading">
+            <h2>Doctors</h2>
+            <button type="button" data-new-doctor>Add</button>
+          </div>
+          <div data-doctor-list></div>
+        </nav>
+
+        <form class="doctor-form" data-doctor-form>
+          <div class="form-heading">
+            <h2 data-form-title>Edit roster entry</h2>
+            <span data-save-state></span>
+          </div>
+          <div class="field-grid">
+            <label>Stable code <input name="doctorCode" pattern="[a-z0-9_]+" required /></label>
+            <label
+              >Display order <input name="displayOrder" type="number" min="0" max="999" required
+            /></label>
+            <label>Public display name <input name="displayName" maxlength="100" required /></label>
+            <label>Role <input name="role" maxlength="100" required /></label>
+            <label>Department <input name="department" maxlength="100" /></label>
+            <label>Room/location <input name="room" maxlength="100" /></label>
+          </div>
+          <label class="active-field"
+            ><input name="isActive" type="checkbox" /> Show this doctor on the public display</label
+          >
+          <label>
+            Weekly availability (JSON)
+            <textarea name="availability" rows="15" spellcheck="false" required></textarea>
+          </label>
+          <p class="field-help">
+            Weekday uses 0=Sunday through 6=Saturday. Types: available, on_call, appointment_only,
+            unavailable. Times use 24-hour HH:MM.
+          </p>
+          <button class="save-button" type="submit">Save roster entry</button>
+        </form>
+      </section>
+
+      <aside class="error-panel" data-admin-error hidden></aside>
+    </main>
+    <script type="module" src="/src/admin.js"></script>
+  </body>
+</html>

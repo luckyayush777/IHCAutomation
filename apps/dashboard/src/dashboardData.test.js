@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildDashboardModel, formatReading } from './dashboardData.js';
+import {
+  buildDashboardModel,
+  buildDoctorAvailabilityModel,
+  formatReading,
+} from './dashboardData.js';
 
 const snapshot = {
   generatedAt: '2026-08-16T09:35:00.000Z',
@@ -48,6 +52,31 @@ const snapshot = {
   ],
   alertRules: [],
   alerts: [],
+  doctors: [
+    {
+      id: 'doctor-1',
+      doctor_code: 'duty_doctor',
+      display_name: 'Duty Doctor',
+      role: 'Medical Officer',
+      department: 'General Medicine',
+      room: 'Consultation Room 1',
+      display_order: 1,
+      is_active: true,
+    },
+  ],
+  doctorAvailability: [
+    {
+      id: 'slot-1',
+      doctor_id: 'doctor-1',
+      weekday: 0,
+      start_time: '09:00:00',
+      end_time: '17:00:00',
+      availability_type: 'available',
+      note: 'General consultation',
+      valid_from: null,
+      valid_until: null,
+    },
+  ],
 };
 
 describe('dashboard data model', () => {
@@ -63,6 +92,18 @@ describe('dashboard data model', () => {
       alert: 1,
       offline: 1,
     });
+  });
+
+  it('calculates current doctor availability in the health-centre time zone', () => {
+    const doctors = buildDoctorAvailabilityModel(snapshot);
+
+    expect(doctors[0]).toMatchObject({
+      display_name: 'Duty Doctor',
+      availabilityKind: 'available',
+      availabilityLabel: 'Available now',
+      scheduleLabel: '09:00–17:00',
+    });
+    expect(buildDashboardModel(snapshot).summary.doctorsAvailable).toBe(1);
   });
 
   it('formats readings for compact dashboard labels', () => {

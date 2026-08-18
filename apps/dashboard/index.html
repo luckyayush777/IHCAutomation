@@ -4,8 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#f4f7f8" />
-    <meta name="description" content="Institute Health Centre environmental monitoring" />
-    <title>IHC Monitor</title>
+    <meta
+      name="description"
+      content="Institute Health Centre doctor availability and environmental monitoring"
+    />
+    <title>IHC Information Console</title>
   </head>
   <body>
     <div class="app-shell">
@@ -13,8 +16,9 @@
         <div class="brand-mark" aria-hidden="true">IH</div>
         <div>
           <p class="eyebrow">Institute Health Centre</p>
-          <h1>Environmental Monitor</h1>
+          <h1>Information Console</h1>
         </div>
+        <time class="console-clock" data-console-clock></time>
         <div class="service-chip">
           <span class="service-dot" aria-hidden="true"></span>
           <span data-service-state>Connecting</span>
@@ -24,13 +28,17 @@
       <main>
         <section class="overview" aria-labelledby="dashboard-title">
           <div>
-            <p class="section-kicker">Live dashboard</p>
-            <h2 id="dashboard-title">Medicine fridges and room conditions</h2>
+            <p class="section-kicker">Health-centre information</p>
+            <h2 id="dashboard-title">Doctors on duty and facility status</h2>
           </div>
           <p data-last-updated>Waiting for first refresh</p>
         </section>
 
-        <section class="summary-grid" aria-label="Monitoring summary">
+        <section class="summary-grid" aria-label="Health-centre summary">
+          <article>
+            <span>Doctors available</span>
+            <strong data-doctors-available>0</strong>
+          </article>
           <article>
             <span>Online devices</span>
             <strong data-online-count>0</strong>
@@ -50,9 +58,26 @@
         </aside>
         <aside class="loading-banner" data-loading-banner>Loading current monitoring data…</aside>
 
+        <section class="doctor-section" aria-labelledby="doctors-title">
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">Today at the health centre</p>
+              <h2 id="doctors-title">Doctor availability</h2>
+            </div>
+            <span class="timezone-label">Times shown in IST</span>
+          </div>
+          <div class="doctor-grid" data-doctor-grid aria-live="polite"></div>
+          <p class="roster-note">
+            Availability may change during emergencies. Please confirm with reception.
+          </p>
+        </section>
+
         <section class="device-section" aria-labelledby="devices-title">
           <div class="section-heading">
-            <h2 id="devices-title">Devices</h2>
+            <div>
+              <p class="section-kicker">Environmental monitoring</p>
+              <h2 id="devices-title">Sensors and medicine storage</h2>
+            </div>
           </div>
           <div class="device-grid" data-device-grid aria-live="polite"></div>
         </section>
@@ -95,7 +120,7 @@
 
       <footer>
         <span>IHC Automation</span>
-        <span>Public read-only monitoring</span>
+        <span>Public read-only display · No patient information</span>
       </footer>
     </div>
     <script type="module" src="/src/dashboard.js"></script>

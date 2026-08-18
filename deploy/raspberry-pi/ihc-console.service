@@ -1,0 +1,23 @@
+[Unit]
+Description=Institute Health Centre information console
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ihc
+Group=ihc
+WorkingDirectory=/opt/ihc-automation
+EnvironmentFile=/etc/ihc-console.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/npm run start --workspace @ihc/api
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/ihc-automation/logs
+
+[Install]
+WantedBy=multi-user.target

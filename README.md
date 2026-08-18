@@ -1,14 +1,15 @@
 # IHC Automation
 
-Environmental and medicine-fridge monitoring for the institute health centre. The system collects
-sensor readings through the API, stores them in Supabase Postgres, and displays public read-only
-status on a lightweight dashboard built with plain HTML, CSS, JavaScript, and Chart.js.
+Raspberry Pi information console and environmental monitoring for the institute health centre. The
+system displays an approved public doctor roster, collects sensor readings through the API, stores
+them in Supabase Postgres, and presents live read-only status on a lightweight dashboard built with
+plain HTML, CSS, JavaScript, and Chart.js.
 
 ## Local services
 
 | Service   | Package          | Local address                  | Purpose                               |
 | --------- | ---------------- | ------------------------------ | ------------------------------------- |
-| Dashboard | `@ihc/dashboard` | <http://localhost:5173>        | Public read-only monitoring dashboard |
+| Dashboard | `@ihc/dashboard` | <http://localhost:5173>        | Doctor availability and monitoring UI |
 | API       | `@ihc/api`       | <http://localhost:4000/health> | Ingestion and dashboard data API      |
 | Simulator | `@ihc/simulator` | <http://localhost:4100/health> | Simulated sensor process              |
 
@@ -31,8 +32,9 @@ Copy-Item .env.example .env
 npm.cmd run dev
 ```
 
-Open <http://localhost:5173>. The dashboard polls the API and shows device status, recent readings,
-active alerts, and Chart.js trends.
+Open <http://localhost:5173>. The dashboard polls the API and shows doctor availability, device
+status, recent readings, active alerts, and Chart.js trends. A cached snapshot remains visible and
+is explicitly labelled when the API or internet connection is unavailable.
 
 Run a single application when needed:
 
@@ -72,6 +74,10 @@ SUPABASE_DB_PASSWORD=your-database-password
 
 The publishable key is safe for the public dashboard only because Row Level Security grants
 anonymous clients read-only access. `SUPABASE_SECRET_KEY` is server-only.
+
+Set `ADMIN_API_KEY` to a separate long random value to enable the local roster editor at
+`http://127.0.0.1:4000/admin.html`. The editor accepts requests only from the Pi itself and retains
+the key only for the current browser tab. Do not reuse the device-ingestion token.
 
 ## Supabase setup
 
@@ -153,8 +159,20 @@ The browser reads from the API only:
 GET /api/v1/dashboard
 ```
 
-The endpoint returns devices, recent readings, enabled alert rules, and recent alerts as one compact
-snapshot. The public dashboard contains no write, acknowledgement, configuration, or login controls.
+The endpoint returns doctors, recurring availability slots, devices, recent readings, enabled alert
+rules, and recent alerts as one compact snapshot. The public dashboard contains no write,
+acknowledgement, configuration, patient, or login controls. Roster changes are made through an
+localhost-only, token-protected roster editor, never through the public screen.
+
+## Raspberry Pi deployment
+
+The production build is designed to run as an always-on Raspberry Pi information console. The API
+serves the compiled dashboard on port 4000, and Chromium opens it in kiosk mode after login. ESP32
+nodes remain distributed at each refrigerator and room and send readings to the Pi over the local
+network.
+
+See [Raspberry Pi deployment](docs/RASPBERRY_PI_DEPLOYMENT.md) for hardware, systemd, kiosk,
+security, reliability, and update instructions.
 
 ## Repository map
 
@@ -163,6 +181,7 @@ IHCAutomation/
 |-- apps/
 |   |-- api/                 Express service
 |   `-- dashboard/           Plain HTML/CSS/JS and Chart.js interface
+|-- deploy/raspberry-pi/     systemd and kiosk deployment files
 |-- docs/                    Implementation checklists
 |-- packages/
 |   `-- shared/              Cross-service TypeScript contracts
@@ -180,4 +199,5 @@ IHCAutomation/
 
 - [Full project plan](plans/PROJECT_PLAN.md)
 - [Hardware and budget guide](plans/HARDWARE_AND_BUDGET.md)
+- [Raspberry Pi deployment guide](docs/RASPBERRY_PI_DEPLOYMENT.md)
 - [Phase 2 checklist](docs/PHASE_2_CHECKLIST.md)

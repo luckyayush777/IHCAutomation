@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=IHC Information Console
+Comment=Open the health-centre dashboard in kiosk mode
+Exec=/opt/ihc-automation/deploy/raspberry-pi/launch-kiosk.sh
+Terminal=false
+X-GNOME-Autostart-enabled=true

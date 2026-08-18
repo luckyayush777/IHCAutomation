@@ -1,8 +1,8 @@
-# Institute Health Centre IoT Monitoring System
+# Institute Health Centre Raspberry Pi Information and IoT Monitoring System
 
 ## 1. Project Summary
 
-Build an IoT monitoring system for an institute health centre. The system will collect environmental and equipment readings, store them in Supabase PostgreSQL, display current and historical conditions on a dashboard, and notify staff when configured safety limits are crossed.
+Build a dedicated Raspberry Pi information computer for an institute health centre. The system will show an approved public doctor roster, collect environmental and equipment readings, store them in Supabase PostgreSQL, display current and historical conditions, and notify staff when configured safety limits are crossed.
 
 The first version will use simulated sensor data. Real sensors can later replace the simulator without changing the database, dashboard, or alert model.
 
@@ -15,23 +15,26 @@ The first version will use simulated sensor data. Real sensors can later replace
 - Create and resolve alerts; staff acknowledgement is deferred from the first version.
 - Record enough history for incident review and refrigerator compliance reporting.
 - Continue collecting readings during temporary network failures once physical devices are introduced.
+- Drive an always-on reception monitor that shows current doctor availability and health-centre notices without exposing patient information.
+- Boot directly into a recoverable kiosk display while retaining a separately administered Raspberry Pi desktop.
 
 ### Confirmed deployment profile
 
-| Item                  | Current decision                                                              |
-| --------------------- | ----------------------------------------------------------------------------- |
-| Intended outcome      | Operational institute system, beginning with a controlled pilot               |
-| Delivery target       | Sensor-equipped version in 4–6 weeks                                          |
-| Refrigerator coverage | 2 refrigerators                                                               |
-| Room coverage         | 4 rooms, each requiring humidity and fire monitoring                          |
-| Refrigerator range    | 2–5°C, pending written policy confirmation                                    |
-| Existing fire system  | None                                                                          |
-| Alert channels        | Local buzzer, email, SMS, and WhatsApp where appropriate                      |
-| Primary users         | Health-centre staff and office personnel; professors need phone access        |
-| Dashboard targets     | Desktop and mobile are equally important                                      |
-| Data hosting          | Supabase for the prototype; production hosting requires an institute decision |
-| Maintenance owner     | Health-centre staff, with a named responsible person still to be assigned     |
-| Connectivity          | Wi-Fi coverage and reliability still need an on-site survey                   |
+| Item                  | Current decision                                                                  |
+| --------------------- | --------------------------------------------------------------------------------- |
+| Intended outcome      | Operational institute system, beginning with a controlled pilot                   |
+| Delivery target       | Sensor-equipped version in 4–6 weeks                                              |
+| Refrigerator coverage | 2 refrigerators                                                                   |
+| Room coverage         | 4 rooms, each requiring humidity and fire monitoring                              |
+| Refrigerator range    | 2–5°C, pending written policy confirmation                                        |
+| Existing fire system  | None                                                                              |
+| Alert channels        | Local buzzer, email, SMS, and WhatsApp where appropriate                          |
+| Primary users         | Health-centre staff and office personnel; professors need phone access            |
+| Console hardware      | Raspberry Pi 5 connected to the health-centre monitor                             |
+| Dashboard targets     | Pi kiosk is primary; desktop and mobile remain supported                          |
+| Data hosting          | API/UI on the Pi with approved telemetry and roster data synchronized to Supabase |
+| Maintenance owner     | Health-centre staff, with a named responsible person still to be assigned         |
+| Connectivity          | Wi-Fi coverage and reliability still need an on-site survey                       |
 
 ## 3. Safety Boundary
 
@@ -51,7 +54,9 @@ Medicine temperature limits must remain configurable and be based on manufacture
   - smoke level or approved detector alarm state in four rooms.
 - Supabase PostgreSQL database.
 - Secure ingestion API for sensor readings.
-- Dashboard with current values, trends, device health, and active alerts.
+- Raspberry Pi kiosk and local application service.
+- Public doctor directory with recurring weekly availability and clear on-call/appointment states.
+- Dashboard with current values, trends, device health, active alerts, and offline snapshot labelling.
 - Configurable alert rules.
 - Active and resolved alert history, with schema fields reserved for future acknowledgement.
 - Simulation scenarios for normal operation and failures.
@@ -71,20 +76,14 @@ Medicine temperature limits must remain configurable and be based on manufacture
 ## 5. Proposed Architecture
 
 ```text
-Simulator now / ESP32 gateway later
-                 |
-                 | HTTPS + device credential
-                 v
-          Reading ingestion API
-                 |
-                 v
-       Supabase PostgreSQL database
-          |              |
-          v              v
-      Dashboard      Alert processor
-                         |
-                         v
-                  Email/SMS provider
+ESP32 sensor nodes -- LAN + device credential --> Raspberry Pi 5
+                                                   |  API + kiosk UI
+                                                   |  doctor roster display
+                                                   v
+                                           Supabase PostgreSQL
+                                                   |
+                                                   v
+                                           Alert/notification services
 ```
 
 Sensors must not connect directly to the database. They send readings to an ingestion API, which validates and stores the data. This avoids placing database credentials in device firmware and provides one stable interface for both simulated and physical devices.
@@ -97,10 +96,12 @@ Sensors must not connect directly to the database. They send readings to an inge
 | Frontend          | Plain HTML, CSS, JavaScript, and Vite             | Lightweight public dashboard without a component framework          |
 | Charts            | Chart.js                                          | Straightforward time-series charts with minimal browser JavaScript  |
 | Backend           | Node.js with Express and TypeScript               | Small ingestion, dashboard-data, and alert-processing API           |
+| Edge computer     | Raspberry Pi 5 with Raspberry Pi OS 64-bit        | Dedicated low-power API host, desktop, and monitor controller       |
+| Kiosk             | Chromium started with the desktop session         | Full-screen local display with browser-managed offline snapshot     |
 | Simulator         | Node.js TypeScript script                         | Shares data types and validation rules with the backend             |
 | Live updates      | Short polling through the Express API             | Keeps dashboard readings current without exposing write credentials |
 | Local development | Supabase cloud project plus environment variables | Fastest prototype setup                                             |
-| Hosting           | Decide after the local prototype                  | Depends on institute policy and deployment preference               |
+| Hosting           | Pi-hosted UI/API plus Supabase                    | Local console remains operational while cloud stores shared history |
 
 ## 7. Data Model
 
@@ -168,6 +169,18 @@ Stores the complete alert lifecycle.
 | `acknowledged_at` | Timestamp | When staff acknowledged it               |
 | `acknowledged_by` | UUID      | Reserved for a future authenticated user |
 | `resolved_at`     | Timestamp | When readings returned to normal         |
+
+### `doctors`
+
+Stores only information approved for the public reception display: stable code, display name, role,
+department, room, display order, and active state. It must not contain private contact details,
+appointments, or patient associations.
+
+### `doctor_availability`
+
+Stores recurring weekly slots using weekday, start/end time, availability type, optional public
+note, and optional validity dates. Supported public states are `available`, `on_call`,
+`appointment_only`, and `unavailable`. Times are interpreted and displayed in `Asia/Kolkata`.
 
 ### Optional later tables
 
@@ -252,6 +265,13 @@ Fire monitoring should use a reviewed combination of smoke, temperature, and rat
 
 ## 11. Dashboard Requirements
 
+### Doctor availability
+
+- Place the current public doctor roster before the sensor detail on the Pi display.
+- Show explicit text status, role, department, room, current hours, and the next upcoming slot.
+- Display the current IST date/time and remind visitors to confirm changes with reception.
+- Never display patient names, appointment lists, personal phone numbers, or clinical information.
+
 ### Overview
 
 - Current status for refrigerator, humidity, room temperature, and smoke monitor.
@@ -274,20 +294,21 @@ Fire monitoring should use a reviewed combination of smoke, temperature, and rat
 - Filters for severity, device, status, and date.
 - Acknowledgement controls are planned for a later release and are not required for the first version.
 
-### Administration (deferred)
+### Administration
 
 - The public dashboard does not include administration controls.
-- During the prototype, thresholds, device state, and rules are changed through reviewed database migrations or server-side tools.
-- An authenticated administration area can be added later if routine in-app configuration becomes necessary.
+- Public roster entries and weekly hours are maintained from a localhost-only, token-protected staff page on the Pi.
+- The roster admin token is separate from sensor credentials and remains in browser session storage only.
+- Thresholds, device state, and alert rules continue to use reviewed migrations or authenticated server-side tools; broader administration remains deferred.
 
-The interface should be optimized for quick scanning on a health-centre computer and provide equal functional coverage on phones used by professors. Color must not be the only indication of an alert state. The prototype dashboard is public and does not require sign-in.
+The interface should be optimized for quick scanning on the Raspberry Pi reception monitor and remain usable on phones and desktops. Color must not be the only indication of availability or an alert state. The public display does not require sign-in; its data is deliberately limited accordingly.
 
 ## 12. Security and Privacy
 
 - Keep patient and clinical data out of this system.
 - Allow anonymous, read-only access to the monitoring dashboard during the prototype.
 - Do not expose configuration, acknowledgement, device-management, or database-write controls on the public dashboard.
-- Treat device names, readings, and alert history as public to anyone who receives the dashboard URL.
+- Treat the approved roster, availability hours, device names, readings, and alert history as public to anyone who can access the dashboard.
 - Enable Row Level Security on every exposed Supabase table.
 - Add narrowly scoped `select` policies for the public dashboard and deny anonymous `insert`, `update`, and `delete` operations.
 - Never expose a Supabase secret or service-role key in the browser or device firmware.
@@ -308,6 +329,9 @@ The interface should be optimized for quick scanning on a health-centre computer
 - Export regular database backups during the prototype.
 - Use automated backups and test restoration before production deployment.
 - Monitor API failures, database failures, and notification delivery failures.
+- Run the Pi API under systemd with automatic restart and launch the browser from a dedicated unprivileged kiosk account.
+- Cache the last successful public snapshot and label it clearly as an offline copy when live refresh fails.
+- Use an SSD or high-endurance storage and add a UPS/safe-shutdown plan where power is unreliable.
 
 ## 14. Implementation Phases
 
@@ -480,6 +504,22 @@ An MQ-series hobby smoke sensor may be used on the workbench to exercise simulat
 
 This is a planning allowance, not a purchasing quote. Prices and certified fire-system requirements must be confirmed with current supplier and installer quotations before the institute approves procurement.
 
+### Raspberry Pi information computer
+
+| Console item                                                           |                                               Preliminary allowance |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------: |
+| Raspberry Pi 5, 8 GB                                                   |                                                     ₹19,000–₹23,000 |
+| Official 27 W power supply, actively cooled case, and micro-HDMI cable |                                                       ₹3,000–₹5,000 |
+| 128–256 GB endurance storage or NVMe storage/HAT                       |                                                       ₹2,000–₹5,000 |
+| Keyboard, mouse, installation accessories, and contingency             |                                                       ₹1,500–₹3,000 |
+| Small UPS/safe-shutdown hardware                                       |                                                       ₹3,000–₹7,000 |
+| Optional 22–24 inch monitor if the institute cannot reuse one          |                                                      ₹7,000–₹12,000 |
+| **Pi console subtotal**                                                | **₹28,500–₹43,000 without a new monitor; ₹35,500–₹55,000 with one** |
+
+The 8 GB board is preferred because the professor requested a general-purpose computer as well as a
+kiosk. A 4 GB Pi 5 is sufficient for the dedicated console software if the approved budget is lower.
+Current August 2026 Indian listings vary substantially, so obtain a GST quote before ordering.
+
 | Budget area                                                                                         |                                                        Preliminary allowance |
 | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------: |
 | ESP32 boards, including two spares                                                                  |                                                                ₹3,000–₹8,000 |
@@ -491,12 +531,12 @@ This is a planning allowance, not a purchasing quote. Prices and certified fire-
 | **IoT monitoring subtotal**                                                                         |                                                          **₹35,000–₹83,000** |
 | Certified fire detection, sounders, panel/relay interface, cabling, installation, and commissioning | **Vendor quote required; hold ₹40,000–₹1,00,000 as a provisional allowance** |
 
-For the next meeting, present **₹1,00,000–₹2,00,000** as the early planning range for an operational six-location pilot, including contingency but excluding the developer's labour. The range should be replaced by a line-item bill of materials and at least one qualified fire-vendor quote after the site survey.
+For the next meeting, present **₹1,30,000–₹2,50,000** as the early planning range for an operational six-location pilot with the Raspberry Pi console, power resilience, certified fire-system allowance, and contingency, but excluding the developer's labour. If the first approval covers only the Pi console and non-certified sensor demonstration, request approximately **₹55,000–₹80,000** depending on whether a monitor and UPS must be purchased. Replace both ranges with supplier and qualified fire-vendor quotes after the site survey.
 
 Recurring costs:
 
 - Supabase Free is suitable during active development. The current Supabase Pro plan starts at USD 25 per month and includes automatic daily backups; confirm current pricing and tax before production approval.
-- Application hosting may have a monthly fee depending on the selected provider or institute infrastructure.
+- The UI/API runs on the Pi, avoiding a separate application-hosting bill; Supabase and notification services may still have recurring fees.
 - SMS and WhatsApp messages have provider and usage charges.
 - Calibration, detector tests, battery replacement, and maintenance should receive an annual budget.
 
@@ -556,6 +596,8 @@ The software prototype is complete when:
 9. Build the responsive dashboard overview using those readings.
 10. Add deterministic alert scenarios and implement the alert engine.
 11. Purchase one ESP32, one SHT40 board, and one PT100/MAX31865 assembly for the first bench test before ordering all units.
+12. Obtain the approved public doctor names, roles, rooms, and weekly hours; replace all generic seed entries.
+13. Procure and configure the Pi console, test kiosk restart/offline behaviour, then perform the site installation.
 
 ## 22. Decisions to Confirm Before the Pilot
 
@@ -566,6 +608,8 @@ The software prototype is complete when:
 - Which channels are required for the first release: local buzzer and email are proposed as mandatory; SMS follows; WhatsApp depends on account approval.
 - Required telemetry retention period.
 - Whether cloud hosting is permitted by institute IT.
+- Which doctor roster fields and schedule notes are approved for public display, and who owns updates.
+- Whether an existing monitor can be reused and where the Pi, UPS, Ethernet, keyboard, and maintenance access will be located.
 - Required report format and frequency; CSV export is proposed first.
 - Named staff owner and schedule for calibration, detector testing, battery replacement, and offline-device response.
 - Wi-Fi reliability, internet-outage behavior, and whether router power backup is required.
@@ -578,6 +622,9 @@ The software prototype is complete when:
 - Supabase backups: <https://supabase.com/docs/guides/platform/backups>
 - Supabase pricing: <https://supabase.com/pricing>
 - Espressif ESP32 documentation: <https://www.espressif.com/en/products/socs/esp32/documentation>
+- Raspberry Pi 5 product page: <https://www.raspberrypi.com/products/raspberry-pi-5/>
+- Raspberry Pi power requirements: <https://www.raspberrypi.com/documentation/hardware/raspberrypi/power.html>
+- Raspberry Pi OS installation: <https://www.raspberrypi.com/documentation/installation/installing-images/>
 - Sensirion SHT40 specifications: <https://sensirion.com/products/catalog/SHT40>
 - Analog Devices MAX31865 specifications: <https://www.analog.com/en/products/max31865.html>
 - BIS fire detection and alarm control-equipment code of practice, IS 15908:2021: <https://services.bis.gov.in/php/BIS_2.0/bisconnect/standard_review/Standard_review/Isdetails?ID=MjU4MDA%3D>

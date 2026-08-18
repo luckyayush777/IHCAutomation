@@ -1,4 +1,5 @@
 import { config } from 'dotenv';
+import { fileURLToPath } from 'node:url';
 
 import { createApp } from './app.js';
 import { createMonitoringStoreFromEnv } from './monitoringStore.js';
@@ -6,13 +7,15 @@ import { createMonitoringStoreFromEnv } from './monitoringStore.js';
 config({ path: new URL('../../../.env', import.meta.url) });
 
 const port = Number(process.env.API_PORT ?? 4000);
+const host = process.env.API_HOST ?? '0.0.0.0';
 const monitoringStore = createMonitoringStoreFromEnv();
-const app = createApp({ monitoringStore });
+const dashboardDirectory = fileURLToPath(new URL('../../dashboard/dist', import.meta.url));
+const app = createApp({ dashboardDirectory, monitoringStore });
 const offlineCheckIntervalMs = Number(process.env.OFFLINE_CHECK_INTERVAL_MS ?? 30_000);
 let offlineCheckTimer: NodeJS.Timeout | undefined;
 
-const server = app.listen(port, () => {
-  console.log(`IHC API listening at http://localhost:${port}`);
+const server = app.listen(port, host, () => {
+  console.log(`IHC API listening at http://${host}:${port}`);
   if (monitoringStore && Number.isFinite(offlineCheckIntervalMs) && offlineCheckIntervalMs > 0) {
     const evaluateOfflineDevices = async () => {
       try {

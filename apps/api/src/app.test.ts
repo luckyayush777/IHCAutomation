@@ -8,6 +8,7 @@ class FakeMonitoringStore implements MonitoringStore {
   readonly stored: Array<{ deviceId: string; receivedAt: string; readingCount: number }> = [];
   readonly evaluatedDevices: Array<{ deviceId: string; evaluatedAt: string }> = [];
   readonly offlineEvaluations: Array<{ evaluatedAt: string; deviceId?: string }> = [];
+  readonly rosterUpdates: Array<{ doctorCode: string; slotCount: number }> = [];
 
   constructor(
     private readonly devices = new Map([
@@ -59,7 +60,44 @@ class FakeMonitoringStore implements MonitoringStore {
       ],
       alertRules: [],
       alerts: [],
+      doctors: [
+        {
+          id: 'doctor-1',
+          doctor_code: 'duty_medical_officer',
+          display_name: 'Duty Medical Officer',
+          role: 'Medical Officer',
+          department: 'General Medicine',
+          room: 'Consultation Room 1',
+          display_order: 1,
+          is_active: true,
+        },
+      ],
+      doctorAvailability: [
+        {
+          id: 'availability-1',
+          doctor_id: 'doctor-1',
+          weekday: 0,
+          start_time: '09:00:00',
+          end_time: '17:00:00',
+          availability_type: 'available' as const,
+          note: 'General consultation',
+          valid_from: null,
+          valid_until: null,
+        },
+      ],
     };
+  }
+
+  async getDoctorRoster() {
+    const snapshot = await this.getDashboardSnapshot('2026-08-16T09:30:00.000Z');
+    return {
+      doctors: snapshot.doctors,
+      doctorAvailability: snapshot.doctorAvailability,
+    };
+  }
+
+  async upsertDoctorRosterEntry(input: { doctorCode: string; availability: unknown[] }) {
+    this.rosterUpdates.push({ doctorCode: input.doctorCode, slotCount: input.availability.length });
   }
 }
 
@@ -93,6 +131,8 @@ describe('dashboard data endpoint', () => {
       readings: [{ metric: 'temperature', value: 4.2 }],
       alertRules: [],
       alerts: [],
+      doctors: [{ doctor_code: 'duty_medical_officer' }],
+      doctorAvailability: [{ doctor_id: 'doctor-1', availability_type: 'available' }],
     });
   });
 
@@ -252,6 +292,67 @@ describe('reading ingestion endpoint', () => {
   });
 });
 
+describe('doctor roster administration', () => {
+  const validDoctor = {
+    displayName: 'Duty Doctor',
+    role: 'Medical Officer',
+    department: 'General Medicine',
+    room: 'Consultation Room 1',
+    displayOrder: 1,
+    isActive: true,
+    availability: [
+      {
+        weekday: 1,
+        startTime: '09:00',
+        endTime: '17:00',
+        availabilityType: 'available',
+        note: 'General consultation',
+      },
+    ],
+  };
+
+  it('requires the separate admin token', async () => {
+    const app = createApp({
+      adminToken: 'admin-test-token',
+      monitoringStore: new FakeMonitoringStore(),
+    });
+    expect((await request(app).get('/api/v1/admin/roster')).status).toBe(401);
+  });
+
+  it('returns and updates the public roster for an authenticated local administrator', async () => {
+    const store = new FakeMonitoringStore();
+    const app = createApp({ adminToken: 'admin-test-token', monitoringStore: store });
+    const roster = await request(app)
+      .get('/api/v1/admin/roster')
+      .set('Authorization', 'Bearer admin-test-token');
+    const update = await request(app)
+      .put('/api/v1/admin/doctors/duty_doctor')
+      .set('Authorization', 'Bearer admin-test-token')
+      .send(validDoctor);
+
+    expect(roster.status).toBe(200);
+    expect(roster.body.doctors).toHaveLength(1);
+    expect(update.status).toBe(200);
+    expect(update.body).toEqual({ doctorCode: 'duty_doctor', updated: true });
+    expect(store.rosterUpdates).toEqual([{ doctorCode: 'duty_doctor', slotCount: 1 }]);
+  });
+
+  it('rejects malformed roster hours', async () => {
+    const response = await request(
+      createApp({ adminToken: 'admin-test-token', monitoringStore: new FakeMonitoringStore() }),
+    )
+      .put('/api/v1/admin/doctors/duty_doctor')
+      .set('Authorization', 'Bearer admin-test-token')
+      .send({
+        ...validDoctor,
+        availability: [{ ...validDoctor.availability[0], startTime: '17:00', endTime: '09:00' }],
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.details).toContain('availability[0].endTime must be after startTime');
+  });
+});
+
 describe('Supabase monitoring storage', () => {
   it('stores readings with an idempotent conflict policy', async () => {
     const calls: Array<{ path: string; init: RequestInit }> = [];
@@ -313,6 +414,8 @@ describe('Supabase monitoring storage', () => {
     expect(calls[1]).toContain('device_id=in.%28device-1%29');
     expect(calls[1]).toContain('recorded_at=gte.2026-08-16T09%3A00%3A00.000Z');
     expect(calls[1]).toContain('recorded_at=lte.2026-08-16T10%3A00%3A00.000Z');
+    expect(calls.some((call) => call.includes('/doctors?'))).toBe(true);
+    expect(calls.some((call) => call.includes('/doctor_availability?'))).toBe(true);
   });
 
   it('evaluates reading and heartbeat rules through server-only RPCs', async () => {

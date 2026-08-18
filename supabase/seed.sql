@@ -96,3 +96,67 @@ set
   enabled = excluded.enabled,
   recovery_seconds = excluded.recovery_seconds,
   hysteresis_value = excluded.hysteresis_value;
+
+-- Generic demonstration entries only. Replace these names and hours with the
+-- institute-approved public roster before deployment.
+with seeded_doctors (doctor_code, display_name, role, department, room, display_order) as (
+  values
+    ('duty_medical_officer', 'Duty Medical Officer', 'Medical Officer', 'General Medicine', 'Consultation Room 1', 1),
+    ('visiting_physician', 'Visiting Physician', 'Physician', 'General Medicine', 'Consultation Room 2', 2),
+    ('on_call_doctor', 'On-call Doctor', 'Medical Officer', 'Emergency Support', 'Contact Reception', 3)
+),
+upserted_doctors as (
+  insert into public.doctors (doctor_code, display_name, role, department, room, display_order, is_active)
+  select doctor_code, display_name, role, department, room, display_order, true
+  from seeded_doctors
+  on conflict (doctor_code) do update
+  set
+    display_name = excluded.display_name,
+    role = excluded.role,
+    department = excluded.department,
+    room = excluded.room,
+    display_order = excluded.display_order,
+    is_active = true,
+    updated_at = now()
+  returning id, doctor_code
+),
+seeded_availability (doctor_code, weekday, start_time, end_time, availability_type, note) as (
+  values
+    ('duty_medical_officer', 1, '09:00'::time, '17:00'::time, 'available', 'General consultation'),
+    ('duty_medical_officer', 2, '09:00'::time, '17:00'::time, 'available', 'General consultation'),
+    ('duty_medical_officer', 3, '09:00'::time, '17:00'::time, 'available', 'General consultation'),
+    ('duty_medical_officer', 4, '09:00'::time, '17:00'::time, 'available', 'General consultation'),
+    ('duty_medical_officer', 5, '09:00'::time, '17:00'::time, 'available', 'General consultation'),
+    ('duty_medical_officer', 6, '09:00'::time, '13:00'::time, 'available', 'General consultation'),
+    ('visiting_physician', 2, '14:00'::time, '17:00'::time, 'appointment_only', 'Prior appointment required'),
+    ('visiting_physician', 4, '14:00'::time, '17:00'::time, 'appointment_only', 'Prior appointment required'),
+    ('on_call_doctor', 0, '00:00'::time, '23:59'::time, 'on_call', 'Contact reception'),
+    ('on_call_doctor', 1, '17:00'::time, '23:59'::time, 'on_call', 'Contact reception'),
+    ('on_call_doctor', 2, '17:00'::time, '23:59'::time, 'on_call', 'Contact reception'),
+    ('on_call_doctor', 3, '17:00'::time, '23:59'::time, 'on_call', 'Contact reception'),
+    ('on_call_doctor', 4, '17:00'::time, '23:59'::time, 'on_call', 'Contact reception'),
+    ('on_call_doctor', 5, '17:00'::time, '23:59'::time, 'on_call', 'Contact reception'),
+    ('on_call_doctor', 6, '13:00'::time, '23:59'::time, 'on_call', 'Contact reception')
+)
+insert into public.doctor_availability (
+  doctor_id,
+  weekday,
+  start_time,
+  end_time,
+  availability_type,
+  note
+)
+select
+  upserted_doctors.id,
+  seeded_availability.weekday,
+  seeded_availability.start_time,
+  seeded_availability.end_time,
+  seeded_availability.availability_type,
+  seeded_availability.note
+from seeded_availability
+join upserted_doctors using (doctor_code)
+on conflict on constraint doctor_availability_slot_unique do update
+set
+  end_time = excluded.end_time,
+  note = excluded.note,
+  updated_at = now();

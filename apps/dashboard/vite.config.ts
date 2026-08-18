@@ -10,6 +10,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         dashboard: resolve(configDirectory, 'index.html'),
+        admin: resolve(configDirectory, 'admin.html'),
         simulation: resolve(configDirectory, 'simulation.html'),
       },
     },

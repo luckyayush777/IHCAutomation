@@ -50,18 +50,64 @@ export interface DashboardAlertRecord {
   resolved_at: string | null;
 }
 
+export interface DashboardDoctorRecord {
+  id: string;
+  doctor_code: string;
+  display_name: string;
+  role: string;
+  department: string | null;
+  room: string | null;
+  display_order: number;
+  is_active: boolean;
+}
+
+export interface DashboardDoctorAvailabilityRecord {
+  id: string;
+  doctor_id: string;
+  weekday: number;
+  start_time: string;
+  end_time: string;
+  availability_type: 'available' | 'on_call' | 'appointment_only' | 'unavailable';
+  note: string | null;
+  valid_from: string | null;
+  valid_until: string | null;
+}
+
 export interface DashboardSnapshot {
   generatedAt: string;
   devices: DashboardDeviceRecord[];
   readings: DashboardReadingRecord[];
   alertRules: DashboardAlertRuleRecord[];
   alerts: DashboardAlertRecord[];
+  doctors: DashboardDoctorRecord[];
+  doctorAvailability: DashboardDoctorAvailabilityRecord[];
 }
 
 export interface DashboardQuery {
   deviceCode?: string;
   from?: string;
   to?: string;
+}
+
+export interface DoctorAvailabilityInput {
+  weekday: number;
+  startTime: string;
+  endTime: string;
+  availabilityType: 'available' | 'on_call' | 'appointment_only' | 'unavailable';
+  note?: string;
+  validFrom?: string;
+  validUntil?: string;
+}
+
+export interface DoctorRosterInput {
+  doctorCode: string;
+  displayName: string;
+  role: string;
+  department?: string;
+  room?: string;
+  displayOrder: number;
+  isActive: boolean;
+  availability: DoctorAvailabilityInput[];
 }
 
 export interface MonitoringStore {
@@ -74,6 +120,11 @@ export interface MonitoringStore {
   evaluateDeviceAlerts(deviceId: string, evaluatedAt: string): Promise<void>;
   evaluateOfflineAlerts(evaluatedAt: string, deviceId?: string): Promise<void>;
   getDashboardSnapshot(generatedAt: string, query?: DashboardQuery): Promise<DashboardSnapshot>;
+  getDoctorRoster(): Promise<{
+    doctors: DashboardDoctorRecord[];
+    doctorAvailability: DashboardDoctorAvailabilityRecord[];
+  }>;
+  upsertDoctorRosterEntry(input: DoctorRosterInput): Promise<void>;
 }
 
 interface SupabaseDeviceResponse {
@@ -176,7 +227,13 @@ export class SupabaseMonitoringStore implements MonitoringStore {
     if (query.from) readingsQuery.append('recorded_at', `gte.${query.from}`);
     if (query.to) readingsQuery.append('recorded_at', `lte.${query.to}`);
 
-    const [readingsResponse, alertRulesResponse, alertsResponse] = await Promise.all([
+    const [
+      readingsResponse,
+      alertRulesResponse,
+      alertsResponse,
+      doctorsResponse,
+      doctorAvailabilityResponse,
+    ] = await Promise.all([
       this.request(`readings?${readingsQuery.toString()}`, { method: 'GET' }),
       this.request(
         'alert_rules?select=id,name,device_id,metric,minimum_value,maximum_value,duration_seconds,severity,enabled&enabled=eq.true&order=name.asc',
@@ -186,12 +243,22 @@ export class SupabaseMonitoringStore implements MonitoringStore {
         'alerts?select=id,rule_id,device_id,status,message,trigger_value,triggered_at,acknowledged_at,resolved_at&order=triggered_at.desc&limit=50',
         { method: 'GET' },
       ),
+      this.request(
+        'doctors?select=id,doctor_code,display_name,role,department,room,display_order,is_active&is_active=eq.true&order=display_order.asc,display_name.asc',
+        { method: 'GET' },
+      ),
+      this.request(
+        'doctor_availability?select=id,doctor_id,weekday,start_time,end_time,availability_type,note,valid_from,valid_until&order=weekday.asc,start_time.asc',
+        { method: 'GET' },
+      ),
     ]);
 
-    const [readings, alertRules, alerts] = await Promise.all([
+    const [readings, alertRules, alerts, doctors, doctorAvailability] = await Promise.all([
       readingsResponse.json() as Promise<DashboardReadingRecord[]>,
       alertRulesResponse.json() as Promise<DashboardAlertRuleRecord[]>,
       alertsResponse.json() as Promise<DashboardAlertRecord[]>,
+      doctorsResponse.json() as Promise<DashboardDoctorRecord[]>,
+      doctorAvailabilityResponse.json() as Promise<DashboardDoctorAvailabilityRecord[]>,
     ]);
 
     return {
@@ -200,7 +267,46 @@ export class SupabaseMonitoringStore implements MonitoringStore {
       readings,
       alertRules,
       alerts,
+      doctors,
+      doctorAvailability,
     };
+  }
+
+  async getDoctorRoster() {
+    const [doctorsResponse, availabilityResponse] = await Promise.all([
+      this.request(
+        'doctors?select=id,doctor_code,display_name,role,department,room,display_order,is_active&order=display_order.asc,display_name.asc',
+        { method: 'GET' },
+      ),
+      this.request(
+        'doctor_availability?select=id,doctor_id,weekday,start_time,end_time,availability_type,note,valid_from,valid_until&order=weekday.asc,start_time.asc',
+        { method: 'GET' },
+      ),
+    ]);
+    const [doctors, doctorAvailability] = await Promise.all([
+      doctorsResponse.json() as Promise<DashboardDoctorRecord[]>,
+      availabilityResponse.json() as Promise<DashboardDoctorAvailabilityRecord[]>,
+    ]);
+    return { doctors, doctorAvailability };
+  }
+
+  async upsertDoctorRosterEntry(input: DoctorRosterInput): Promise<void> {
+    await this.request('rpc/upsert_doctor_roster_entry', {
+      method: 'POST',
+      headers: { prefer: 'return=minimal' },
+      body: JSON.stringify({
+        p_doctor: {
+          doctorCode: input.doctorCode,
+          displayName: input.displayName,
+          role: input.role,
+          department: input.department ?? '',
+          room: input.room ?? '',
+          displayOrder: input.displayOrder,
+          isActive: input.isActive,
+        },
+        p_slots: input.availability,
+      }),
+    });
   }
 
   private async request(path: string, init: RequestInit): Promise<Response> {

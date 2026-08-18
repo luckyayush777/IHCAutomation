@@ -2,7 +2,9 @@
 
 ## 1. The Short Answer
 
-You do not need ₹1 lakh for microcontrollers and probes.
+The professor's revised requirement adds a dedicated Raspberry Pi computer and reception display to
+the sensor system. The Pi is a separate central console; it does not replace the ESP32 at each room
+or refrigerator.
 
 The earlier ₹1–2 lakh figure was a broad allowance for an operational six-location installation. It included custom IoT electronics, protective enclosures, power supplies, backup power, calibration, installation, spares, and a separate professionally designed fire-detection system.
 
@@ -13,9 +15,13 @@ Use these figures when speaking to the institute:
 | Learning build                           |            ₹3,000–₹5,000 | One refrigerator node and one room node on a desk                                         |
 | Complete software/hardware demonstration |          ₹15,000–₹25,000 | Two refrigerator nodes and four room nodes using prototype sensors                        |
 | Better-built IoT pilot                   |          ₹30,000–₹50,000 | Six enclosed, powered nodes with better fridge probes, spares, and installation materials |
+| Pi 5 console, reusing a monitor          |          ₹29,000–₹43,000 | 8 GB Pi, storage, cooling, power, cable, controls, and UPS allowance                      |
+| Pi 5 console with a new monitor          |          ₹36,000–₹55,000 | Complete reception computer and display                                                   |
 | Certified fire detection                 |    Separate vendor quote | Life-safety equipment, sounders, wiring, installation, and approval                       |
 
-For the immediate prototype, request approximately **₹25,000**, not ₹1 lakh. Make it clear that this excludes a certified fire-alarm installation.
+For the revised immediate prototype, request **₹55,000–₹80,000** for the Pi console plus the six
+prototype sensor nodes, depending on whether the institute already has a suitable monitor and UPS.
+Make it clear that this still excludes a certified fire-alarm installation.
 
 Prices in this document are approximate Indian retail prices checked in August 2026. Shipping, GST treatment, stock, cable length, enclosure quality, and the exact sensor brand can change the final amount.
 
@@ -25,9 +31,30 @@ Prices in this document are approximate Indian retail prices checked in August 2
 
 The ESP32 is the small computer inside each monitoring box. It reads sensors, activates a buzzer, connects to Wi-Fi, and sends readings to your API.
 
-You do not need a Raspberry Pi or a computer beside every sensor. One ESP32 per refrigerator or room is a simple starting design.
+You do not need a Raspberry Pi beside every sensor. Use one central Pi information computer and one
+ESP32 per refrigerator or room.
 
 Approximate price: **₹500–₹800 per development board**.
+
+### Central computer: Raspberry Pi 5
+
+Use a Raspberry Pi 5 with 8 GB RAM as the professor requested a computer that can run the kiosk and
+basic desktop applications. A 4 GB model is adequate if it will only run the Node.js service and
+browser display.
+
+| Pi console item                                   | Quantity | Planning allowance |
+| ------------------------------------------------- | -------: | -----------------: |
+| Raspberry Pi 5, 8 GB                              |        1 |    ₹19,000–₹23,000 |
+| Official 27 W USB-C supply                        |        1 |      ₹1,200–₹1,800 |
+| Official fan case or Active Cooler plus enclosure |        1 |      ₹1,000–₹2,000 |
+| 128–256 GB endurance storage or NVMe storage/HAT  |        1 |      ₹2,000–₹5,000 |
+| Micro-HDMI cable, keyboard, and mouse             |    1 set |      ₹1,500–₹3,000 |
+| Small UPS/safe-shutdown hardware                  |        1 |      ₹3,000–₹7,000 |
+| Optional 22–24 inch HDMI monitor                  |        1 |     ₹7,000–₹12,000 |
+
+The official Pi 5 specification recommends a high-quality 5 V/5 A supply, specifically the 27 W
+USB-C supply, and active cooling is appropriate for an enclosed always-on computer. Prefer an SSD
+or high-endurance media over a basic microSD card for the operational installation.
 
 ### Refrigerator probe
 
@@ -198,7 +225,11 @@ This is why the earlier operational allowance became large. Since there is no ex
 
 Use wording similar to this in the next meeting:
 
-> The initial IoT prototype budget requested is ₹25,000. This covers two refrigerator monitoring prototypes, four room monitoring prototypes, spare controllers, power supplies, basic enclosures, and development materials. It does not include certified fire-alarm equipment or professional installation. That system requires a separate assessment and vendor quotation. After the prototype and site survey, a second bill of materials will cover calibrated refrigerator probes and permanent installation.
+> The revised prototype budget requested is ₹55,000–₹80,000. It covers a Raspberry Pi 5 information
+> computer, reception kiosk accessories, two refrigerator monitoring prototypes, four room
+> monitoring prototypes, spare controllers, power supplies, enclosures, and development materials.
+> The lower end assumes an existing monitor can be reused. It does not include certified fire-alarm
+> equipment or professional installation, which require a separate assessment and vendor quotation.
 
 If they only approve a learning prototype, request **₹5,000 initially**, demonstrate one refrigerator and one room, and then request the remaining amount with evidence from the working build.
 
@@ -227,9 +258,17 @@ Avoid working directly with 230 V mains wiring. Use certified plug-in low-voltag
 - Does the institute already use a fire-safety vendor?
 - Does the budget need to include installation labour and annual maintenance?
 - Are SMS and WhatsApp running charges part of the same budget?
+- Can the health centre reuse an HDMI monitor, keyboard, mouse, and UPS?
+- Is Ethernet available at the reception display, and can the Pi receive a reserved LAN address?
+- Who will maintain the approved doctor roster and public availability hours?
 
 ## 11. Price and Specification References
 
+- Raspberry Pi 5 official specifications: <https://www.raspberrypi.com/products/raspberry-pi-5/>
+- Raspberry Pi 5 8 GB India listing, checked August 2026 at approximately ₹19,618: <https://www.thingbits.in/products/raspberry-pi-5-computer>
+- Raspberry Pi 5 8 GB starter kit India listing, checked August 2026 at approximately ₹27,024: <https://robocraze.com/products/official-raspberry-pi-5-8gb-starter-kit>
+- Official 27 W supply India listing, checked August 2026 at approximately ₹1,204: <https://robocraze.com/products/raspberry-pi-5-27w-usb-c-power-supply-black-colour>
+- Raspberry Pi power documentation: <https://www.raspberrypi.com/documentation/hardware/raspberrypi/power.html>
 - ESP32 development-board example, approximately ₹706: <https://robu.in/product-category/smartelex-wifi-and-bluetooth-module/>
 - DS18B20 probe example, approximately ₹64: <https://robocraze.com/products/ds18b20-waterproof-digital-thermometer-sensor-probe>
 - Longer DS18B20 probe example, approximately ₹305: <https://robocraze.com/products/ds18b20-digital-temperature-sensor-probe-with-3m-waterproof-cable-7semi>
