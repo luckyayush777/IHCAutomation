@@ -1,0 +1,10 @@
+Category,Item,Purpose,Vendor,Quantity,Unit Price (INR),Line Total (INR),Status,Notes
+Sensor,GY-SHT40 Digital Temperature and Humidity Sensor,Room temperature and humidity sensing,Robu,2,219,438,In cart,Unwelded version; headers may need soldering
+Controller,ESP8266 NodeMCU CP2102 Board,Wi-Fi sensor-node development board,Robu,2,259,518,In cart,Usable for prototyping; project plan recommends ESP32 for deployment
+Sensor,DS18B20 Waterproof Temperature Probe - Black (1m),Refrigerator temperature sensing,Robu,2,50,100,In cart,Requires a pull-up resistor
+Prototyping,MB102 Power Module + 830-Hole Breadboard + 65 Jumper Wires Set,Circuit prototyping,Robu,1,269,269,In cart,One shared learning and bench kit
+Alert,5V Active Electromagnetic Buzzer,Local audible alert,Robu,1,16,16,In cart,Full deployment needs one per node
+Component,2N2222 NPN Transistor,Buzzer or load switching,Robu,50,2,100,In cart,Large surplus for this project
+Indicator,5mm Assorted LED Set (20 pieces),Status and alarm indication,Amazon,1,109,109,In cart,"4 each: white, red, green, blue, yellow"
+Component,50-Value Resistor Kit (1000 pieces),LED current limiting pull-ups and general prototyping,Amazon,1,299,299,In cart,Check that common values include 220-330 ohm and 4.7k ohm
+TOTAL,,,,,,1849,,Combined displayed cart value before delivery or discounts

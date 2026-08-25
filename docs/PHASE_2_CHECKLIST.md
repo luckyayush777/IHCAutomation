@@ -1,40 +1,28 @@
 # Phase 2: What You Need To Do
 
-Phase 2 creates the Supabase database, security policies, initial devices, and public read-only
-dashboard access. Staff login is intentionally deferred. Most of the technical work can be
-implemented in this repository. The following account and institute decisions require you because
-they involve ownership, credentials, or operational policy.
+Phase 2 creates the local SQLite database, ORM schema and migrations, initial devices, and
+API-mediated public read-only dashboard access. Staff login is intentionally deferred. The database
+will reside on the Raspberry Pi and will not require a hosted database account.
 
 ## Before Phase 2 starts
 
-### 1. Create the institute-owned Supabase project
+### 1. Prepare local database storage
 
-1. Sign in at <https://supabase.com/dashboard> using an account the institute can retain.
-2. Create a new organization and project. A suitable project name is `ihc-monitoring-prototype`.
-3. Choose the closest available region to the institute.
-4. Generate a strong database password and store it in a password manager.
-5. Keep the project on the Free plan during the prototype unless its limits become a problem.
+1. Reserve a protected application-data directory on the Raspberry Pi, for example
+   `/var/lib/ihc-automation`.
+2. Store the SQLite database on the Pi's SSD or high-endurance storage, not on removable temporary
+   media.
+3. Restrict the directory to the application service account and administrator.
+4. Define an encrypted, institute-controlled backup location and a restoration procedure.
 
-Do not expose database credentials or broad table access. Public dashboard reads will be granted
-only through narrow Row Level Security policies. Do not send the database password or secret keys
-through email or chat.
-
-### 2. Put the project values in your local `.env`
-
-From the Supabase project's API settings, copy these values into the local `.env` file:
+### 2. Put the database location in your local `.env`
 
 ```dotenv
-SUPABASE_URL=https://your-project-ref.supabase.co
-SUPABASE_PUBLISHABLE_KEY=your-publishable-or-anon-key
-SUPABASE_SECRET_KEY=your-server-only-secret-key
+DATABASE_URL="file:/var/lib/ihc-automation/ihc-monitoring.db"
 ```
 
-The publishable key will be used by the public read-only dashboard. This key is safe to place in a
-browser only because Row Level Security will limit what it can do. The service-role or secret key
-is server-only and must never be exposed to the dashboard or physical devices.
-
-You do not need to give the secret key to me in chat. Once it is in the ignored `.env` file, I can
-use it locally without printing it.
+The public dashboard must access data only through the Express API. The database file and its path
+must not be exposed to the dashboard or physical devices.
 
 ### 3. Confirm the public prototype boundary
 
@@ -80,24 +68,22 @@ Examples are `Vaccine Refrigerator`, `Medicine Refrigerator`, `Consultation Room
 
 Once the project exists and the local `.env` values are present, the repository work is:
 
-- [x] Supabase CLI configuration and repeatable SQL migrations;
-- [x] `devices`, `readings`, `alert_rules`, and `alerts` tables;
-- [x] data types, foreign keys, checks, uniqueness constraints, and query indexes;
-- [x] two refrigerator devices and four room devices in development seed data;
-- [x] Row Level Security on every exposed table;
-- [x] anonymous read-only policies for dashboard access, with anonymous writes blocked;
-- [x] apply the migration and seed data to the hosted Supabase project;
-- [x] verify live anonymous reads and blocked browser-side writes against the hosted project;
-- [x] no login or account-management screens in the prototype;
-- [x] database tests proving anonymous clients can read approved dashboard data but cannot insert,
-      update, or delete records;
-- [x] reset and setup instructions so the database can be recreated from scratch.
+- [ ] Prisma ORM configuration and repeatable local SQLite migrations;
+- [ ] `devices`, `readings`, `alert_rules`, and `alerts` tables;
+- [ ] data types, foreign keys, checks, uniqueness constraints, and query indexes;
+- [ ] two refrigerator devices and four room devices in development seed data;
+- [ ] API-only database access, with no direct browser or device connection;
+- [ ] local migrations and seed data applied to the Raspberry Pi database;
+- [ ] verify browser-side and device-side database writes are impossible;
+- [ ] no login or account-management screens in the prototype;
+- [ ] database tests proving the API can access the database while the dashboard and devices cannot;
+- [ ] reset, backup, and restore instructions for the local database.
 
 ## Phase 2 completion check
 
-Phase 2 is complete when a clean migration creates the whole schema, the six devices appear after
-seeding, an anonymous browser can read approved dashboard data, and that browser cannot create or
-modify readings, devices, rules, or alerts.
+Phase 2 is complete when a clean ORM migration creates the local schema, the six devices appear
+after seeding, the dashboard can read approved data through the API, and neither the browser nor a
+device can directly create or modify database records.
 
 The next step is Phase 3: the simulator sends deterministic normal and abnormal readings to the API,
-and the API validates and stores them in Supabase.
+and the API validates and stores them in the local SQLite database through the ORM.

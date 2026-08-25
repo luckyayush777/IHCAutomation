@@ -1,8 +1,9 @@
 # IHC Automation
 
 Raspberry Pi information console and environmental monitoring for the institute health centre. The
-system displays an approved public doctor roster, collects sensor readings through the API, stores
-them in Supabase Postgres, and presents live read-only status on a lightweight dashboard built with
+target architecture displays an approved public doctor roster, collects sensor readings through the
+API, stores them locally on the Raspberry Pi through an ORM-backed SQLite database, and presents
+live read-only status on a lightweight dashboard built with
 plain HTML, CSS, JavaScript, and Chart.js.
 
 ## Local services
@@ -59,36 +60,31 @@ Run every check in sequence with `npm.cmd run check`.
 ## Environment variables
 
 Create a local `.env` for machine-specific values. The `.env` file and all other environment files
-are ignored by Git. Never place the Supabase secret key in dashboard source code, device firmware, a
+are ignored by Git. Never place device-ingestion or administrator credentials in dashboard source code, device firmware, a
 commit, screenshot, or chat message.
 
-Known Supabase variables for Phase 2 are:
+The intended local-database deployment keeps the SQLite database path server-side:
 
 ```dotenv
-SUPABASE_URL=https://your-project-ref.supabase.co
-SUPABASE_PUBLISHABLE_KEY=your-publishable-or-anon-key
-SUPABASE_SECRET_KEY=your-server-only-secret-key
-SUPABASE_JWKS_URL=https://your-project-ref.supabase.co/auth/v1/.well-known/jwks.json
-SUPABASE_DB_PASSWORD=your-database-password
+DATABASE_URL="file:/var/lib/ihc-automation/ihc-monitoring.db"
 ```
 
-The publishable key is safe for the public dashboard only because Row Level Security grants
-anonymous clients read-only access. `SUPABASE_SECRET_KEY` is server-only.
+The dashboard accesses the database only through the local API. Database files and ORM credentials
+must never be exposed to the browser or physical devices.
 
 Set `ADMIN_API_KEY` to a separate long random value to enable the local roster editor at
 `http://127.0.0.1:4000/admin.html`. The editor accepts requests only from the Pi itself and retains
 the key only for the current browser tab. Do not reuse the device-ingestion token.
 
-## Supabase setup
+## Local database and ORM
 
-The phase 2 schema lives in `supabase/migrations/20260816093000_initial_monitoring_schema.sql`.
-Development seed data lives in `supabase/seed.sql`.
+The target deployment uses an ORM (Prisma) with a local SQLite database stored on the Raspberry Pi.
+The ORM schema and migrations will define the devices, readings, alert rules, alerts, and doctor
+roster tables. This keeps monitoring data within the institute network and removes the need for a
+hosted database account.
 
-With the Supabase CLI installed and linked to the hosted project, apply the schema and seeds with:
-
-```powershell
-npx.cmd supabase db push --include-seed
-```
+> The current working code still uses Supabase until the separate database-migration task is
+> implemented. Do not remove the existing environment values or `supabase/` files before that task.
 
 ## Reading ingestion
 
@@ -118,8 +114,8 @@ Example payload:
 }
 ```
 
-The API uses `SUPABASE_SECRET_KEY` server-side to store valid readings and update device heartbeat
-state. The simulator uses `SIMULATOR_DEVICE_KEY`; it never needs Supabase database keys.
+The intended API uses the ORM server-side to store valid readings and update device heartbeat state.
+The simulator uses `SIMULATOR_DEVICE_KEY`; it never needs database credentials.
 
 Simulator scenarios are controlled with:
 
@@ -186,9 +182,9 @@ IHCAutomation/
 |-- packages/
 |   `-- shared/              Cross-service TypeScript contracts
 |-- simulator/               Simulated sensor process
-|-- supabase/
-|   |-- migrations/          Phase 2 database migrations
-|   `-- seed.sql             Phase 2 development devices and rules
+|-- prisma/
+|   |-- schema.prisma        Local SQLite ORM schema
+|   `-- migrations/          Local database migrations
 |-- plans/
 |   |-- HARDWARE_AND_BUDGET.md
 |   `-- PROJECT_PLAN.md

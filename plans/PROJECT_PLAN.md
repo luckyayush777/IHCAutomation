@@ -2,7 +2,7 @@
 
 ## 1. Project Summary
 
-Build a dedicated Raspberry Pi information computer for an institute health centre. The system will show an approved public doctor roster, collect environmental and equipment readings, store them in Supabase PostgreSQL, display current and historical conditions, and notify staff when configured safety limits are crossed.
+Build a dedicated Raspberry Pi information computer for an institute health centre. The system will show an approved public doctor roster, collect environmental and equipment readings, store them in a local SQLite database through an ORM, display current and historical conditions, and notify staff when configured safety limits are crossed.
 
 The first version will use simulated sensor data. Real sensors can later replace the simulator without changing the database, dashboard, or alert model.
 
@@ -20,21 +20,21 @@ The first version will use simulated sensor data. Real sensors can later replace
 
 ### Confirmed deployment profile
 
-| Item                  | Current decision                                                                  |
-| --------------------- | --------------------------------------------------------------------------------- |
-| Intended outcome      | Operational institute system, beginning with a controlled pilot                   |
-| Delivery target       | Sensor-equipped version in 4–6 weeks                                              |
-| Refrigerator coverage | 2 refrigerators                                                                   |
-| Room coverage         | 4 rooms, each requiring humidity and fire monitoring                              |
-| Refrigerator range    | 2–5°C, pending written policy confirmation                                        |
-| Existing fire system  | None                                                                              |
-| Alert channels        | Local buzzer, email, SMS, and WhatsApp where appropriate                          |
-| Primary users         | Health-centre staff and office personnel; professors need phone access            |
-| Console hardware      | Raspberry Pi 5 connected to the health-centre monitor                             |
-| Dashboard targets     | Pi kiosk is primary; desktop and mobile remain supported                          |
-| Data hosting          | API/UI on the Pi with approved telemetry and roster data synchronized to Supabase |
-| Maintenance owner     | Health-centre staff, with a named responsible person still to be assigned         |
-| Connectivity          | Wi-Fi coverage and reliability still need an on-site survey                       |
+| Item                  | Current decision                                                          |
+| --------------------- | ------------------------------------------------------------------------- |
+| Intended outcome      | Operational institute system, beginning with a controlled pilot           |
+| Delivery target       | Sensor-equipped version in 4–6 weeks                                      |
+| Refrigerator coverage | 2 refrigerators                                                           |
+| Room coverage         | 4 rooms, each requiring humidity and fire monitoring                      |
+| Refrigerator range    | 2–5°C, pending written policy confirmation                                |
+| Existing fire system  | None                                                                      |
+| Alert channels        | Local buzzer, email, SMS, and WhatsApp where appropriate                  |
+| Primary users         | Health-centre staff and office personnel; professors need phone access    |
+| Console hardware      | Raspberry Pi 5 connected to the health-centre monitor                     |
+| Dashboard targets     | Pi kiosk is primary; desktop and mobile remain supported                  |
+| Data hosting          | API/UI, ORM, and approved telemetry/roster data stored locally on the Pi  |
+| Maintenance owner     | Health-centre staff, with a named responsible person still to be assigned |
+| Connectivity          | Wi-Fi coverage and reliability still need an on-site survey               |
 
 ## 3. Safety Boundary
 
@@ -52,7 +52,7 @@ Medicine temperature limits must remain configurable and be based on manufacture
   - two refrigerator temperature probes;
   - humidity and temperature in four rooms;
   - smoke level or approved detector alarm state in four rooms.
-- Supabase PostgreSQL database.
+- Local SQLite database accessed through Prisma ORM.
 - Secure ingestion API for sensor readings.
 - Raspberry Pi kiosk and local application service.
 - Public doctor directory with recurring weekly availability and clear on-call/appointment states.
@@ -80,7 +80,7 @@ ESP32 sensor nodes -- LAN + device credential --> Raspberry Pi 5
                                                    |  API + kiosk UI
                                                    |  doctor roster display
                                                    v
-                                           Supabase PostgreSQL
+                                      Prisma ORM + local SQLite database
                                                    |
                                                    v
                                            Alert/notification services
@@ -90,18 +90,19 @@ Sensors must not connect directly to the database. They send readings to an inge
 
 ## 6. Technology Choices
 
-| Area              | Initial choice                                    | Reason                                                              |
-| ----------------- | ------------------------------------------------- | ------------------------------------------------------------------- |
-| Database          | Supabase PostgreSQL                               | Managed SQL database with authentication and realtime support       |
-| Frontend          | Plain HTML, CSS, JavaScript, and Vite             | Lightweight public dashboard without a component framework          |
-| Charts            | Chart.js                                          | Straightforward time-series charts with minimal browser JavaScript  |
-| Backend           | Node.js with Express and TypeScript               | Small ingestion, dashboard-data, and alert-processing API           |
-| Edge computer     | Raspberry Pi 5 with Raspberry Pi OS 64-bit        | Dedicated low-power API host, desktop, and monitor controller       |
-| Kiosk             | Chromium started with the desktop session         | Full-screen local display with browser-managed offline snapshot     |
-| Simulator         | Node.js TypeScript script                         | Shares data types and validation rules with the backend             |
-| Live updates      | Short polling through the Express API             | Keeps dashboard readings current without exposing write credentials |
-| Local development | Supabase cloud project plus environment variables | Fastest prototype setup                                             |
-| Hosting           | Pi-hosted UI/API plus Supabase                    | Local console remains operational while cloud stores shared history |
+| Area              | Initial choice                             | Reason                                                              |
+| ----------------- | ------------------------------------------ | ------------------------------------------------------------------- |
+| Database          | SQLite                                     | Local, lightweight database suitable for the Raspberry Pi           |
+| ORM               | Prisma                                     | Typed data access, schema definition, migrations, and seeding       |
+| Frontend          | Plain HTML, CSS, JavaScript, and Vite      | Lightweight public dashboard without a component framework          |
+| Charts            | Chart.js                                   | Straightforward time-series charts with minimal browser JavaScript  |
+| Backend           | Node.js with Express and TypeScript        | Small ingestion, dashboard-data, and alert-processing API           |
+| Edge computer     | Raspberry Pi 5 with Raspberry Pi OS 64-bit | Dedicated low-power API host, desktop, and monitor controller       |
+| Kiosk             | Chromium started with the desktop session  | Full-screen local display with browser-managed offline snapshot     |
+| Simulator         | Node.js TypeScript script                  | Shares data types and validation rules with the backend             |
+| Live updates      | Short polling through the Express API      | Keeps dashboard readings current without exposing write credentials |
+| Local development | SQLite file plus environment variables     | No external database account is required                            |
+| Hosting           | Pi-hosted UI/API and local database        | Monitoring data remains within the institute network                |
 
 ## 7. Data Model
 
@@ -309,9 +310,9 @@ The interface should be optimized for quick scanning on the Raspberry Pi recepti
 - Allow anonymous, read-only access to the monitoring dashboard during the prototype.
 - Do not expose configuration, acknowledgement, device-management, or database-write controls on the public dashboard.
 - Treat the approved roster, availability hours, device names, readings, and alert history as public to anyone who can access the dashboard.
-- Enable Row Level Security on every exposed Supabase table.
-- Add narrowly scoped `select` policies for the public dashboard and deny anonymous `insert`, `update`, and `delete` operations.
-- Never expose a Supabase secret or service-role key in the browser or device firmware.
+- Do not expose the SQLite database file or ORM connection to the browser or device firmware.
+- Serve dashboard data through narrow read-only API endpoints and deny database write routes to public users.
+- Restrict the database directory to the Raspberry Pi service account and administrator.
 - Store secrets in environment variables and exclude them from Git.
 - Give the ingestion API only the permissions it requires.
 - Use HTTPS for all device and dashboard traffic.
@@ -348,36 +349,35 @@ tests, production builds, environment templates, and local startup instructions 
 
 **Completion criteria:** all three applications start locally and contain health-check endpoints or screens.
 
-### Phase 2: Supabase setup
+### Phase 2: Local database and ORM setup
 
-**Status:** Completed on 16 August 2026. The hosted Supabase project has the Phase 2 migration and
-seed data applied. Public clients can read the approved dashboard tables and are blocked from
-insert, update, and delete operations across the exposed monitoring tables. Server-side secret-key
-access was verified with a temporary write/delete probe.
+**Status:** Planned. Replace the hosted database integration with Prisma ORM and a local SQLite
+database on the Raspberry Pi. The existing Supabase-backed code remains in place until this separate
+migration is implemented and tested.
 
-- Create a Supabase project.
-- Add database migrations for core tables, constraints, and indexes.
-- Add initial simulated devices.
-- Enable Row Level Security and create access policies.
-- Add anonymous read-only policies for dashboard data; defer staff authentication.
+- Add a Prisma schema for core tables, constraints, indexes, and relationships.
+- Create repeatable SQLite migrations and seed the six simulated devices.
+- Store the database on protected Pi storage and configure local backups.
+- Keep database access server-side; the dashboard and devices use the API only.
 
-**Completion criteria:** migrations can create the database from scratch, anonymous clients can read dashboard data, and browser clients cannot create or modify telemetry.
+**Completion criteria:** ORM migrations create the local database from scratch, the dashboard reads
+approved data only through the API, and browser/device clients cannot directly access the database.
 
 ### Phase 3: Ingestion API and simulator
 
-**Status:** Completed on 16 August 2026. The shared ingestion contract, authenticated
-`POST /api/v1/readings` API route, Supabase-backed reading storage, device heartbeat update,
-idempotent duplicate handling, delayed-reading retry policy, deterministic normal batches, abnormal
-simulator scenarios, offline-device simulation, and network retry behavior have been added. A
-hosted integration probe successfully stored one refrigerator reading through the API and cleaned it
-up afterward.
+**Status:** Partially complete. The shared ingestion contract, authenticated
+`POST /api/v1/readings` API route, device heartbeat update, idempotent duplicate handling,
+delayed-reading retry policy, deterministic normal batches, abnormal simulator scenarios,
+offline-device simulation, and network retry behavior are implemented. The storage layer must be
+migrated from the existing hosted integration to the ORM-backed local database before this phase is
+complete.
 
 - Implement device authentication and reading validation.
 - Store valid readings and update device heartbeat information.
 - Implement normal and abnormal simulator scenarios.
 - Add automated tests for valid, invalid, duplicate, and delayed readings.
 
-**Completion criteria:** the simulator can continuously populate Supabase, deterministic failure
+**Completion criteria:** the simulator can continuously populate the local database, deterministic failure
 scenarios are available for demonstrations, duplicate retries are idempotent, delayed queued
 readings have a tested 24-hour acceptance window, and invalid readings are handled predictably.
 
@@ -387,7 +387,7 @@ readings have a tested 24-hour acceptance window, and invalid readings are handl
 clear online/offline and attention states, selectable device detail, device-specific alerts, and
 historical temperature/humidity views for 1-hour, 24-hour, 7-day, or custom periods. The Express
 dashboard endpoint supports bounded time and device filters so historical views do not require
-browser access to Supabase. Loading, empty, and API-unreachable states are visible to the user.
+direct database access. Loading, empty, and API-unreachable states are visible to the user.
 
 - Build the overview and device-detail screens.
 - Add historical charts and time-range selection.
@@ -450,14 +450,14 @@ both threshold and offline trigger/recovery paths and removed their test data af
 
 The six-week version is the recommended plan. A four-week delivery is possible for a software prototype and limited bench hardware, but it should not be described as a fully validated six-location operational system.
 
-| Week | Software work                                                         | Hardware and institute work                                                                        | Exit result                                    |
-| ---- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| 1    | Supabase schema, simulator, ingestion API foundation                  | Site survey, Wi-Fi test, confirm 2–5°C rule, request fire-system quotes, order parts               | Simulated readings stored; procurement started |
-| 2    | Responsive overview, device pages, history charts, public read access | Bench-test ESP32, one SHT40, and one refrigerator probe                                            | Dashboard works on desktop and phone           |
-| 3    | Alert engine, offline detection, email notifications, CSV export      | Build one complete fridge node and one room node; test local buzzer and buffering                  | End-to-end bench demonstration                 |
-| 4    | Error handling, audit records, notification retries                   | Calibrate first probe; review fire-vendor proposal; confirm installation points                    | Pilot-ready design and first validated nodes   |
-| 5    | SMS integration and operational polish                                | Assemble remaining nodes, install enclosures, test power and Wi-Fi at all six locations            | Two fridges and four rooms report data         |
-| 6    | Bug fixes, backup procedure, final documentation                      | Soak test, outage drills, staff training, handover; add WhatsApp only if account approval is ready | Controlled operational pilot sign-off          |
+| Week | Software work                                                             | Hardware and institute work                                                                        | Exit result                                            |
+| ---- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| 1    | Prisma schema, local SQLite database, simulator, ingestion API foundation | Site survey, Wi-Fi test, confirm 2–5°C rule, request fire-system quotes, order parts               | Simulated readings stored locally; procurement started |
+| 2    | Responsive overview, device pages, history charts, public read access     | Bench-test ESP32, one SHT40, and one refrigerator probe                                            | Dashboard works on desktop and phone                   |
+| 3    | Alert engine, offline detection, email notifications, CSV export          | Build one complete fridge node and one room node; test local buzzer and buffering                  | End-to-end bench demonstration                         |
+| 4    | Error handling, audit records, notification retries                       | Calibrate first probe; review fire-vendor proposal; confirm installation points                    | Pilot-ready design and first validated nodes           |
+| 5    | SMS integration and operational polish                                    | Assemble remaining nodes, install enclosures, test power and Wi-Fi at all six locations            | Two fridges and four rooms report data                 |
+| 6    | Bug fixes, backup procedure, final documentation                          | Soak test, outage drills, staff training, handover; add WhatsApp only if account approval is ready | Controlled operational pilot sign-off                  |
 
 Critical dependencies that must begin in Week 1:
 
@@ -465,7 +465,7 @@ Critical dependencies that must begin in Week 1:
 - Wi-Fi and power survey at all six locations;
 - delivery lead times for probes, enclosures, and power supplies;
 - qualified fire-safety assessment and quote;
-- institute approval for email, SMS, WhatsApp, and cloud accounts;
+- institute approval for email, SMS, WhatsApp, and encrypted backup storage;
 - availability of a calibrated reference thermometer or calibration service.
 
 ## 16. Provisional Hardware Design
@@ -535,8 +535,8 @@ For the next meeting, present **₹1,30,000–₹2,50,000** as the early plannin
 
 Recurring costs:
 
-- Supabase Free is suitable during active development. The current Supabase Pro plan starts at USD 25 per month and includes automatic daily backups; confirm current pricing and tax before production approval.
-- The UI/API runs on the Pi, avoiding a separate application-hosting bill; Supabase and notification services may still have recurring fees.
+- The UI/API, ORM, and SQLite database run on the Pi, avoiding a hosted database subscription.
+- Encrypted backup storage and notification services may still have recurring fees.
 - SMS and WhatsApp messages have provider and usage charges.
 - Calibration, detector tests, battery replacement, and maintenance should receive an annual budget.
 
@@ -550,9 +550,9 @@ IHCAutomation/
 |-- packages/
 |   `-- shared/
 |-- simulator/
-|-- supabase/
+|-- prisma/
 |   |-- migrations/
-|   `-- seed.sql
+|   `-- schema.prisma
 |-- docs/
 |-- .env.example
 |-- README.md
@@ -563,7 +563,7 @@ IHCAutomation/
 
 - Unit tests for validation and alert-rule evaluation.
 - API tests for device authentication, ingestion, duplicate handling, and permissions.
-- Database tests for constraints and Row Level Security.
+- Database tests for ORM constraints, migrations, and backup/restore procedures.
 - Dashboard tests for loading, offline, stale, warning, and critical states.
 - End-to-end tests that activate simulator scenarios and verify alert history.
 - Manual responsive checks on desktop and phone-sized screens.
@@ -573,26 +573,26 @@ IHCAutomation/
 
 The software prototype is complete when:
 
-- simulated data for two refrigerators and four room monitors is stored in Supabase;
+- simulated data for two refrigerators and four room monitors is stored in the local SQLite database;
 - the dashboard shows current values and historical charts;
 - stale or offline devices are clearly identified;
 - configurable out-of-range conditions create alerts;
 - staff can review active and resolved alerts; acknowledgement remains a future feature;
 - invalid readings are rejected or marked as suspect;
-- public users can read monitoring data while Row Level Security blocks browser-side writes;
+- public users can read monitoring data through the API while browser-side database writes remain impossible;
 - the system can demonstrate normal, refrigerator excursion, humidity warning, possible fire, and offline-device scenarios;
 - setup and demonstration steps are documented.
 
 ## 21. Immediate Next Actions
 
-1. Create the Supabase project and save its URL and keys in local environment variables.
+1. Define the protected local database location and encrypted backup destination on the Raspberry Pi.
 2. Ask the institute to confirm the 2–5°C range, alert delay, notification recipients, and escalation procedure in writing.
 3. Survey Wi-Fi signal and power availability at both refrigerators and all four rooms.
 4. Request a qualified quote for certified fire detection and local sounders in the four rooms.
 5. Scaffold the plain dashboard, TypeScript API, and TypeScript simulator applications.
 6. Write the first database migration for `devices`, `readings`, `alert_rules`, and `alerts`.
 7. Seed two refrigerator devices and four room devices.
-8. Implement the normal simulator scenario and verify readings in Supabase.
+8. Implement the normal simulator scenario and verify readings in the local database.
 9. Build the responsive dashboard overview using those readings.
 10. Add deterministic alert scenarios and implement the alert engine.
 11. Purchase one ESP32, one SHT40 board, and one PT100/MAX31865 assembly for the first bench test before ordering all units.
@@ -607,7 +607,7 @@ The software prototype is complete when:
 - Named recipients for each alert severity and the required response time.
 - Which channels are required for the first release: local buzzer and email are proposed as mandatory; SMS follows; WhatsApp depends on account approval.
 - Required telemetry retention period.
-- Whether cloud hosting is permitted by institute IT.
+- The approved local database location, backup retention period, and encrypted backup destination.
 - Which doctor roster fields and schedule notes are approved for public display, and who owns updates.
 - Whether an existing monitor can be reused and where the Pi, UPS, Ethernet, keyboard, and maintenance access will be located.
 - Required report format and frequency; CSV export is proposed first.
@@ -616,11 +616,9 @@ The software prototype is complete when:
 
 ## 23. Reference Documentation
 
-- Supabase database: <https://supabase.com/docs/guides/database/overview>
-- Supabase Row Level Security: <https://supabase.com/docs/guides/database/postgres/row-level-security>
+- Prisma SQLite documentation: <https://www.prisma.io/docs/orm/overview/databases/sqlite>
+- SQLite documentation: <https://www.sqlite.org/docs.html>
 - Chart.js documentation: <https://www.chartjs.org/docs/latest/>
-- Supabase backups: <https://supabase.com/docs/guides/platform/backups>
-- Supabase pricing: <https://supabase.com/pricing>
 - Espressif ESP32 documentation: <https://www.espressif.com/en/products/socs/esp32/documentation>
 - Raspberry Pi 5 product page: <https://www.raspberrypi.com/products/raspberry-pi-5/>
 - Raspberry Pi power requirements: <https://www.raspberrypi.com/documentation/hardware/raspberrypi/power.html>

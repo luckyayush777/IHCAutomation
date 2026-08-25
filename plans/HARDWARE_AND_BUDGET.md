@@ -85,7 +85,7 @@ Approximate price: **₹90–₹150 each**.
 
 An MQ-2 is not a certified fire detector. It reacts to several gases, needs warm-up and calibration, and must not be the only device protecting occupied rooms.
 
-For the operational system, a qualified vendor should select approved smoke/heat detectors and local sounders. Ideally, the vendor's system supplies a relay or dry-contact alarm output that the ESP32 reads. The approved detector triggers the local alarm; the ESP32 only reports that event to Supabase and remote users.
+For the operational system, a qualified vendor should select approved smoke/heat detectors and local sounders. Ideally, the vendor's system supplies a relay or dry-contact alarm output that the ESP32 reads. The approved detector triggers the local alarm; the ESP32 reports that event to the local Raspberry Pi application and authorised staff users.
 
 ### Buzzer
 
@@ -128,7 +128,7 @@ ESP32 ----> local buzzer/status light
   |
   | Wi-Fi + HTTPS
   v
-API ----> Supabase ----> dashboard and notifications
+API ----> ORM ----> local SQLite database ----> dashboard and notifications
 ```
 
 For a PT100 probe, the MAX31865 board sits between the probe and ESP32.
@@ -137,7 +137,7 @@ For a PT100 probe, the MAX31865 board sits between the probe and ESP32.
 
 ```text
 SHT40 humidity/temperature ----\
-                                > ESP32 ----> Supabase
+                                > ESP32 ----> Raspberry Pi API -> ORM -> local SQLite database
 MQ-2 for desk prototype -------/
 
 Approved smoke/heat detector ----> approved local sounder

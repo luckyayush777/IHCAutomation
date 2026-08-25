@@ -4,7 +4,8 @@
 
 The Raspberry Pi is the health-centre's dedicated information computer and local application host.
 It serves the built dashboard and API, drives the reception monitor, receives readings from ESP32
-nodes over the local network, and synchronizes data with Supabase. It does not replace the ESP32
+nodes over the local network, and stores approved monitoring data in its local SQLite database
+through the ORM. It does not replace the ESP32
 installed at each refrigerator or room.
 
 The public console contains operational status and the approved public doctor roster only. Do not
@@ -53,7 +54,7 @@ schedule time accurate across disconnected power cycles.
 ## Service configuration
 
 Copy the example environment file and fill in the real values locally. Never commit the completed
-file or expose the Supabase secret on the screen.
+file or expose the device-ingestion or administrator credentials on the screen.
 
 ```bash
 sudo cp deploy/raspberry-pi/ihc-console.env.example /etc/ihc-console.env
@@ -95,7 +96,7 @@ blanking for that account, and reboot. Keep an administrator account separate fo
 - Use a different long `ADMIN_API_KEY`; share it only with the roster owner and rotate it after staff changes.
 - Keep `/etc/ihc-console.env` readable only by root and the service process.
 - Enable unattended security updates and schedule monthly application/OS maintenance.
-- Back up database data through the approved Supabase/institute policy.
+- Back up the local SQLite database to encrypted institute-controlled storage and test restoration.
 - Test cold boot, loss of internet, loss of Wi-Fi, and restoration after power failure.
 - Confirm that the cached screen is visibly labelled `Offline copy` when fresh data is unavailable.
 - Replace the generic doctor seed entries and hours with a roster approved for public display.
