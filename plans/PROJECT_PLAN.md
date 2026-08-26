@@ -1,5 +1,9 @@
 # Institute Health Centre Raspberry Pi Information and IoT Monitoring System
 
+> **Platform note:** The current pilot uses a Raspberry Pi 3 as the central console. The older
+> Raspberry Pi 5 figures in the preliminary budget are retained only as a previous estimate and
+> must be replaced with a Pi 3 quotation before procurement.
+
 ## 1. Project Summary
 
 Build a dedicated Raspberry Pi information computer for an institute health centre. The system will show an approved public doctor roster, collect environmental and equipment readings, store them in a local SQLite database through an ORM, display current and historical conditions, and notify staff when configured safety limits are crossed.
@@ -30,7 +34,7 @@ The first version will use simulated sensor data. Real sensors can later replace
 | Existing fire system  | None                                                                      |
 | Alert channels        | Local buzzer, email, SMS, and WhatsApp where appropriate                  |
 | Primary users         | Health-centre staff and office personnel; professors need phone access    |
-| Console hardware      | Raspberry Pi 5 connected to the health-centre monitor                     |
+| Console hardware      | Raspberry Pi 3 connected to the health-centre monitor                     |
 | Dashboard targets     | Pi kiosk is primary; desktop and mobile remain supported                  |
 | Data hosting          | API/UI, ORM, and approved telemetry/roster data stored locally on the Pi  |
 | Maintenance owner     | Health-centre staff, with a named responsible person still to be assigned |
@@ -76,7 +80,7 @@ Medicine temperature limits must remain configurable and be based on manufacture
 ## 5. Proposed Architecture
 
 ```text
-ESP32 sensor nodes -- LAN + device credential --> Raspberry Pi 5
+ESP32 sensor nodes -- LAN + device credential --> Raspberry Pi 3
                                                    |  API + kiosk UI
                                                    |  doctor roster display
                                                    v
@@ -97,7 +101,7 @@ Sensors must not connect directly to the database. They send readings to an inge
 | Frontend          | Plain HTML, CSS, JavaScript, and Vite      | Lightweight public dashboard without a component framework          |
 | Charts            | Chart.js                                   | Straightforward time-series charts with minimal browser JavaScript  |
 | Backend           | Node.js with Express and TypeScript        | Small ingestion, dashboard-data, and alert-processing API           |
-| Edge computer     | Raspberry Pi 5 with Raspberry Pi OS 64-bit | Dedicated low-power API host, desktop, and monitor controller       |
+| Edge computer     | Raspberry Pi 3 with Raspberry Pi OS 64-bit | Dedicated low-power API host, desktop, and monitor controller       |
 | Kiosk             | Chromium started with the desktop session  | Full-screen local display with browser-managed offline snapshot     |
 | Simulator         | Node.js TypeScript script                  | Shares data types and validation rules with the backend             |
 | Live updates      | Short polling through the Express API      | Keeps dashboard readings current without exposing write credentials |
@@ -170,6 +174,12 @@ Stores the complete alert lifecycle.
 | `acknowledged_at` | Timestamp | When staff acknowledged it               |
 | `acknowledged_by` | UUID      | Reserved for a future authenticated user |
 | `resolved_at`     | Timestamp | When readings returned to normal         |
+
+### `alert_condition_states`
+
+Stores temporary state for alert-delay, recovery-delay, and hysteresis evaluation. Its composite
+primary key is `(rule_id, device_id)`, linking one current condition state to an alert rule and
+device. It stores violation and recovery start times, violation direction, and last-evaluated time.
 
 ### `doctors`
 

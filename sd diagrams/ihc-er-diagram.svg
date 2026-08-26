@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1700" height="1050" viewBox="0 0 1700 1050">
+  <defs>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #172a3b; }
+      .title { font-size: 32px; font-weight: 700; }
+      .subtitle { font-size: 17px; fill: #516579; }
+      .entity { fill: #fff; stroke: #4f82ad; stroke-width: 2; }
+      .header { fill: #dfeef9; stroke: #4f82ad; stroke-width: 2; }
+      .name { font-size: 19px; font-weight: 700; }
+      .key { font-size: 14px; font-weight: 700; }
+      .field { font-size: 14px; }
+      .relation { stroke: #426986; stroke-width: 2.5; fill: none; }
+      .card { font-size: 14px; font-weight: 700; fill: #426986; }
+    </style>
+  </defs>
+  <rect width="1700" height="1050" fill="#fff"/>
+  <text x="60" y="58" class="title">ER Diagram — Planned Local ORM Database</text>
+  <text x="60" y="88" class="subtitle">Core SQLite tables and their primary/foreign-key relationships</text>
+
+  <rect x="75" y="170" width="300" height="210" rx="8" class="entity"/><rect x="75" y="170" width="300" height="42" rx="8" class="header"/>
+  <text x="175" y="198" class="name">DEVICES</text>
+  <text x="95" y="240" class="key">PK  id</text><text x="95" y="264" class="key">UQ  device_code</text>
+  <text x="95" y="288" class="field">name, location, device_type</text><text x="95" y="312" class="field">status, last_seen_at, created_at</text>
+
+  <rect x="480" y="115" width="320" height="235" rx="8" class="entity"/><rect x="480" y="115" width="320" height="42" rx="8" class="header"/>
+  <text x="580" y="143" class="name">READINGS</text>
+  <text x="500" y="185" class="key">PK  id</text><text x="500" y="209" class="key">FK  device_id → devices.id</text>
+  <text x="500" y="233" class="field">metric, value, unit, quality</text><text x="500" y="257" class="field">recorded_at, received_at</text>
+  <text x="500" y="305" class="field">UQ (device_id, metric, recorded_at)</text>
+
+  <rect x="480" y="495" width="320" height="250" rx="8" class="entity"/><rect x="480" y="495" width="320" height="42" rx="8" class="header"/>
+  <text x="565" y="523" class="name">ALERT_RULES</text>
+  <text x="500" y="565" class="key">PK  id</text><text x="500" y="589" class="key">FK  device_id → devices.id</text>
+  <text x="500" y="613" class="field">name, metric, minimum_value</text><text x="500" y="637" class="field">maximum_value, duration_seconds</text>
+  <text x="500" y="661" class="field">severity, enabled</text><text x="500" y="709" class="field">UQ (device_id, metric, name)</text>
+
+  <rect x="1000" y="125" width="325" height="240" rx="8" class="entity"/><rect x="1000" y="125" width="325" height="42" rx="8" class="header"/>
+  <text x="1110" y="153" class="name">ALERTS</text>
+  <text x="1020" y="195" class="key">PK  id</text><text x="1020" y="219" class="key">FK  rule_id → alert_rules.id</text>
+  <text x="1020" y="243" class="key">FK  device_id → devices.id</text><text x="1020" y="267" class="field">status, message, trigger_value</text>
+  <text x="1020" y="291" class="field">triggered_at, resolved_at</text>
+
+  <rect x="1000" y="500" width="325" height="205" rx="8" class="entity"/><rect x="1000" y="500" width="325" height="42" rx="8" class="header"/>
+  <text x="1050" y="528" class="name">ALERT_CONDITION_STATES</text>
+  <text x="1020" y="570" class="key">PK/FK  rule_id → alert_rules.id</text><text x="1020" y="594" class="key">PK/FK  device_id → devices.id</text>
+  <text x="1020" y="618" class="field">violation_started_at</text><text x="1020" y="642" class="field">recovery_started_at, direction</text>
+
+  <rect x="75" y="650" width="300" height="190" rx="8" class="entity"/><rect x="75" y="650" width="300" height="42" rx="8" class="header"/>
+  <text x="175" y="678" class="name">DOCTORS</text>
+  <text x="95" y="720" class="key">PK  id</text><text x="95" y="744" class="key">UQ  doctor_code</text>
+  <text x="95" y="768" class="field">display_name, role, department</text><text x="95" y="792" class="field">room, display_order, is_active</text>
+
+  <rect x="480" y="850" width="320" height="145" rx="8" class="entity"/><rect x="480" y="850" width="320" height="42" rx="8" class="header"/>
+  <text x="535" y="878" class="name">DOCTOR_AVAILABILITY</text>
+  <text x="500" y="920" class="key">PK  id · FK  doctor_id → doctors.id</text>
+  <text x="500" y="944" class="field">weekday, start_time, end_time</text><text x="500" y="968" class="field">availability_type, note, validity dates</text>
+
+  <path d="M375 250 L480 235" class="relation"/><text x="388" y="237" class="card">1</text><text x="450" y="220" class="card">∞</text>
+  <path d="M375 330 C425 410 435 555 480 600" class="relation"/><text x="385" y="410" class="card">1</text><text x="452" y="550" class="card">∞</text>
+  <path d="M800 235 L1000 235" class="relation"/><text x="825" y="220" class="card">1</text><text x="970" y="220" class="card">∞</text>
+  <path d="M800 615 L1000 605" class="relation"/><text x="825" y="600" class="card">1</text><text x="970" y="590" class="card">0..1</text>
+  <path d="M375 745 L480 920" class="relation"/><text x="390" y="780" class="card">1</text><text x="450" y="895" class="card">∞</text>
+  <path d="M375 290 C650 420 820 300 1000 285" class="relation"/><text x="790" y="340" class="card">1</text><text x="970" y="300" class="card">∞</text>
+</svg>

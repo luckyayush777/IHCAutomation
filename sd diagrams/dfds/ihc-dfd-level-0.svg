@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="850" viewBox="0 0 1400 850">
+  <defs>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #16283a; }
+      .title { font-size: 32px; font-weight: 700; }
+      .subtitle { font-size: 17px; fill: #516579; }
+      .external { fill: #eef5fb; stroke: #4f82ad; stroke-width: 2; }
+      .process { fill: #edf7ef; stroke: #559166; stroke-width: 3; }
+      .label { font-size: 21px; font-weight: 700; }
+      .body { font-size: 17px; fill: #3d5266; }
+      .flow { stroke: #426986; stroke-width: 2.5; fill: none; marker-end: url(#arrow); }
+      .flowLabel { font-size: 15px; font-weight: 700; fill: #426986; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#426986"/></marker>
+  </defs>
+  <rect width="1400" height="850" fill="#fff"/>
+  <text x="70" y="65" class="title">DFD Level 0 — Institute Health Centre Monitoring System</text>
+  <text x="70" y="95" class="subtitle">Context diagram: external entities and the single system process</text>
+
+  <rect x="90" y="300" width="280" height="150" rx="16" class="external"/>
+  <text x="145" y="355" class="label">ESP32 Sensor Nodes</text>
+  <text x="125" y="385" class="body">Refrigerator, humidity,</text>
+  <text x="125" y="410" class="body">and fire-status readings</text>
+
+  <circle cx="705" cy="375" r="185" class="process"/>
+  <text x="610" y="350" class="label">0.0</text>
+  <text x="525" y="385" class="label">IHC Monitoring</text>
+  <text x="560" y="415" class="label">and Alert System</text>
+  <text x="555" y="450" class="body">Raspberry Pi 3 console</text>
+
+  <rect x="1035" y="175" width="270" height="145" rx="16" class="external"/>
+  <text x="1100" y="230" class="label">Health Centre Staff</text>
+  <text x="1082" y="260" class="body">Alerts and current status</text>
+
+  <rect x="1035" y="500" width="270" height="145" rx="16" class="external"/>
+  <text x="1090" y="555" class="label">Authorised Admin</text>
+  <text x="1080" y="585" class="body">Roster and alert-rule updates</text>
+
+  <path d="M370 350 C460 320 495 320 520 330" class="flow"/>
+  <text x="400" y="300" class="flowLabel">Sensor readings</text>
+  <path d="M520 415 C465 440 430 440 370 425" class="flow"/>
+  <text x="395" y="475" class="flowLabel">Device status</text>
+
+  <path d="M880 315 C945 280 980 265 1035 255" class="flow"/>
+  <text x="900" y="235" class="flowLabel">Alerts and dashboard status</text>
+  <path d="M1035 560 C945 525 895 490 860 455" class="flow"/>
+  <text x="895" y="570" class="flowLabel">Approved updates</text>
+</svg>

@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1700" height="1050" viewBox="0 0 1700 1050">
+  <defs>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #172a3b; }
+      .title { font-size: 32px; font-weight: 700; }
+      .subtitle { font-size: 17px; fill: #516579; }
+      .class { fill: #f7fbff; stroke: #4f82ad; stroke-width: 2; }
+      .head { fill: #dfeef9; stroke: #4f82ad; stroke-width: 2; }
+      .name { font-size: 20px; font-weight: 700; }
+      .field { font-size: 14px; }
+      .relation { stroke: #426986; stroke-width: 2.4; fill: none; }
+      .card { font-size: 14px; font-weight: 700; fill: #426986; }
+    </style>
+  </defs>
+  <rect width="1700" height="1050" fill="#fff"/>
+  <text x="60" y="58" class="title">Class Diagram — Planned ORM Data Model</text>
+  <text x="60" y="88" class="subtitle">Prisma/SQLite entities for the IHC Monitoring System</text>
+
+  <!-- Device -->
+  <rect x="75" y="170" width="285" height="235" rx="8" class="class"/>
+  <rect x="75" y="170" width="285" height="45" rx="8" class="head"/>
+  <text x="175" y="199" class="name">Device</text>
+  <text x="95" y="242" class="field">id: String</text><text x="95" y="266" class="field">deviceCode: String [unique]</text>
+  <text x="95" y="290" class="field">name: String</text><text x="95" y="314" class="field">location: String</text>
+  <text x="95" y="338" class="field">deviceType: DeviceType</text><text x="95" y="362" class="field">status: DeviceStatus</text>
+  <text x="95" y="386" class="field">lastSeenAt: DateTime?</text>
+
+  <!-- Reading -->
+  <rect x="500" y="125" width="310" height="250" rx="8" class="class"/>
+  <rect x="500" y="125" width="310" height="45" rx="8" class="head"/>
+  <text x="605" y="154" class="name">Reading</text>
+  <text x="520" y="197" class="field">id: Int</text><text x="520" y="221" class="field">deviceId: String [FK]</text>
+  <text x="520" y="245" class="field">metric: Metric</text><text x="520" y="269" class="field">value: Decimal</text>
+  <text x="520" y="293" class="field">unit: Unit</text><text x="520" y="317" class="field">quality: ReadingQuality</text>
+  <text x="520" y="341" class="field">recordedAt: DateTime</text><text x="520" y="365" class="field">receivedAt: DateTime</text>
+
+  <!-- AlertRule -->
+  <rect x="500" y="505" width="310" height="275" rx="8" class="class"/>
+  <rect x="500" y="505" width="310" height="45" rx="8" class="head"/>
+  <text x="600" y="534" class="name">AlertRule</text>
+  <text x="520" y="577" class="field">id: String</text><text x="520" y="601" class="field">deviceId: String [FK]</text>
+  <text x="520" y="625" class="field">name: String</text><text x="520" y="649" class="field">metric: Metric</text>
+  <text x="520" y="673" class="field">minimumValue: Decimal?</text><text x="520" y="697" class="field">maximumValue: Decimal?</text>
+  <text x="520" y="721" class="field">durationSeconds: Int</text><text x="520" y="745" class="field">severity: Severity</text>
+  <text x="520" y="769" class="field">enabled: Boolean</text>
+
+  <!-- Alert -->
+  <rect x="1010" y="155" width="315" height="270" rx="8" class="class"/>
+  <rect x="1010" y="155" width="315" height="45" rx="8" class="head"/>
+  <text x="1125" y="184" class="name">Alert</text>
+  <text x="1030" y="227" class="field">id: String</text><text x="1030" y="251" class="field">ruleId: String [FK]</text>
+  <text x="1030" y="275" class="field">deviceId: String [FK]</text><text x="1030" y="299" class="field">status: AlertStatus</text>
+  <text x="1030" y="323" class="field">message: String</text><text x="1030" y="347" class="field">triggerValue: Decimal?</text>
+  <text x="1030" y="371" class="field">triggeredAt: DateTime</text><text x="1030" y="395" class="field">resolvedAt: DateTime?</text>
+
+  <!-- AlertConditionState -->
+  <rect x="1010" y="525" width="315" height="225" rx="8" class="class"/>
+  <rect x="1010" y="525" width="315" height="45" rx="8" class="head"/>
+  <text x="1060" y="554" class="name">AlertConditionState</text>
+  <text x="1030" y="597" class="field">ruleId: String [PK, FK]</text><text x="1030" y="621" class="field">deviceId: String [PK, FK]</text>
+  <text x="1030" y="645" class="field">violationStartedAt: DateTime?</text><text x="1030" y="669" class="field">recoveryStartedAt: DateTime?</text>
+  <text x="1030" y="693" class="field">violationDirection: Direction?</text><text x="1030" y="717" class="field">lastEvaluatedAt: DateTime</text>
+
+  <!-- Doctor -->
+  <rect x="75" y="650" width="285" height="210" rx="8" class="class"/>
+  <rect x="75" y="650" width="285" height="45" rx="8" class="head"/>
+  <text x="175" y="679" class="name">Doctor</text>
+  <text x="95" y="722" class="field">id: String</text><text x="95" y="746" class="field">doctorCode: String [unique]</text>
+  <text x="95" y="770" class="field">displayName: String</text><text x="95" y="794" class="field">role: String</text>
+  <text x="95" y="818" class="field">department: String?</text><text x="95" y="842" class="field">isActive: Boolean</text>
+
+  <!-- DoctorAvailability -->
+  <rect x="500" y="850" width="310" height="150" rx="8" class="class"/>
+  <rect x="500" y="850" width="310" height="45" rx="8" class="head"/>
+  <text x="560" y="879" class="name">DoctorAvailability</text>
+  <text x="520" y="918" class="field">id: String · doctorId: String [FK]</text>
+  <text x="520" y="942" class="field">weekday: Int · startTime/endTime: Time</text>
+  <text x="520" y="966" class="field">availabilityType: AvailabilityType</text>
+
+  <!-- relations -->
+  <path d="M360 250 L500 250" class="relation"/><text x="377" y="240" class="card">1</text><text x="468" y="240" class="card">0..*</text>
+  <path d="M360 340 C430 430 430 565 500 620" class="relation"/><text x="378" y="420" class="card">1</text><text x="468" y="590" class="card">0..*</text>
+  <path d="M810 250 L1010 250" class="relation"/><text x="830" y="240" class="card">1</text><text x="970" y="240" class="card">0..*</text>
+  <path d="M810 630 L1010 630" class="relation"/><text x="832" y="620" class="card">1</text><text x="970" y="620" class="card">0..1</text>
+  <path d="M360 755 L500 925" class="relation"/><text x="380" y="780" class="card">1</text><text x="468" y="895" class="card">0..*</text>
+  <text x="375" y="105" class="subtitle">Device 1—many Readings / Rules</text>
+  <text x="975" y="105" class="subtitle">Rule 1—many Alerts</text>
+</svg>

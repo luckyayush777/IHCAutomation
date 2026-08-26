@@ -2,7 +2,7 @@
 
 Raspberry Pi information console and environmental monitoring for the institute health centre. The
 target architecture displays an approved public doctor roster, collects sensor readings through the
-API, stores them locally on the Raspberry Pi through an ORM-backed SQLite database, and presents
+API, stores them locally on the Raspberry Pi 3 through an ORM-backed SQLite database, and presents
 live read-only status on a lightweight dashboard built with
 plain HTML, CSS, JavaScript, and Chart.js.
 
