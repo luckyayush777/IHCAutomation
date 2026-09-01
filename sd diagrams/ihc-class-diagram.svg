@@ -1,14 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1700" height="1050" viewBox="0 0 1700 1050">
   <defs>
     <style>
-      text { font-family: Arial, Helvetica, sans-serif; fill: #172a3b; }
+      text { font-family: Arial; fill: #172a3b; }
       .title { font-size: 32px; font-weight: 700; }
       .subtitle { font-size: 17px; fill: #516579; }
       .class { fill: #f7fbff; stroke: #4f82ad; stroke-width: 2; }
       .head { fill: #dfeef9; stroke: #4f82ad; stroke-width: 2; }
       .name { font-size: 20px; font-weight: 700; }
       .field { font-size: 14px; }
-      .relation { stroke: #426986; stroke-width: 2.4; fill: none; }
+      .relation { stroke: #426986; stroke-width: 4; fill: none; }
       .card { font-size: 14px; font-weight: 700; fill: #426986; }
     </style>
   </defs>
@@ -77,12 +77,14 @@
   <text x="520" y="942" class="field">weekday: Int · startTime/endTime: Time</text>
   <text x="520" y="966" class="field">availabilityType: AvailabilityType</text>
 
-  <!-- relations -->
-  <path d="M360 250 L500 250" class="relation"/><text x="377" y="240" class="card">1</text><text x="468" y="240" class="card">0..*</text>
-  <path d="M360 340 C430 430 430 565 500 620" class="relation"/><text x="378" y="420" class="card">1</text><text x="468" y="590" class="card">0..*</text>
-  <path d="M810 250 L1010 250" class="relation"/><text x="830" y="240" class="card">1</text><text x="970" y="240" class="card">0..*</text>
-  <path d="M810 630 L1010 630" class="relation"/><text x="832" y="620" class="card">1</text><text x="970" y="620" class="card">0..1</text>
-  <path d="M360 755 L500 925" class="relation"/><text x="380" y="780" class="card">1</text><text x="468" y="895" class="card">0..*</text>
+  <!-- associations: explicit line segments ensure ImageMagick renders them -->
+  <line x1="360" y1="250" x2="500" y2="250" stroke="#426986" stroke-width="4"/><text x="377" y="240" class="card">1</text><text x="458" y="240" class="card">0..*</text>
+  <line x1="360" y1="350" x2="430" y2="460" stroke="#426986" stroke-width="4"/><line x1="430" y1="460" x2="500" y2="620" stroke="#426986" stroke-width="4"/><text x="375" y="430" class="card">1</text><text x="462" y="590" class="card">0..*</text>
+  <line x1="810" y1="250" x2="1010" y2="250" stroke="#426986" stroke-width="4"/><text x="830" y="240" class="card">1</text><text x="965" y="240" class="card">0..*</text>
+  <line x1="360" y1="215" x2="430" y2="120" stroke="#426986" stroke-width="4"/><line x1="430" y1="120" x2="950" y2="120" stroke="#426986" stroke-width="4"/><line x1="950" y1="120" x2="1010" y2="215" stroke="#426986" stroke-width="4"/><text x="385" y="165" class="card">1</text><text x="970" y="175" class="card">0..*</text>
+  <line x1="810" y1="630" x2="1010" y2="630" stroke="#426986" stroke-width="4"/><text x="832" y="620" class="card">1</text><text x="965" y="620" class="card">0..1</text>
+  <line x1="360" y1="370" x2="430" y2="800" stroke="#426986" stroke-width="4"/><line x1="430" y1="800" x2="940" y2="800" stroke="#426986" stroke-width="4"/><line x1="940" y1="800" x2="1010" y2="700" stroke="#426986" stroke-width="4"/><text x="395" y="620" class="card">1</text><text x="960" y="750" class="card">0..1</text>
+  <line x1="360" y1="755" x2="500" y2="925" stroke="#426986" stroke-width="4"/><text x="380" y="780" class="card">1</text><text x="462" y="895" class="card">0..*</text>
   <text x="375" y="105" class="subtitle">Device 1—many Readings / Rules</text>
   <text x="975" y="105" class="subtitle">Rule 1—many Alerts</text>
 </svg>

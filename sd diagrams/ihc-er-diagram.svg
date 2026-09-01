@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1700" height="1050" viewBox="0 0 1700 1050">
   <defs>
     <style>
-      text { font-family: Arial, Helvetica, sans-serif; fill: #172a3b; }
+      text { font-family: Arial; fill: #172a3b; }
       .title { font-size: 32px; font-weight: 700; }
       .subtitle { font-size: 17px; fill: #516579; }
       .entity { fill: #fff; stroke: #4f82ad; stroke-width: 2; }
@@ -55,10 +55,11 @@
   <text x="500" y="920" class="key">PK  id · FK  doctor_id → doctors.id</text>
   <text x="500" y="944" class="field">weekday, start_time, end_time</text><text x="500" y="968" class="field">availability_type, note, validity dates</text>
 
-  <path d="M375 250 L480 235" class="relation"/><text x="388" y="237" class="card">1</text><text x="450" y="220" class="card">∞</text>
-  <path d="M375 330 C425 410 435 555 480 600" class="relation"/><text x="385" y="410" class="card">1</text><text x="452" y="550" class="card">∞</text>
-  <path d="M800 235 L1000 235" class="relation"/><text x="825" y="220" class="card">1</text><text x="970" y="220" class="card">∞</text>
-  <path d="M800 615 L1000 605" class="relation"/><text x="825" y="600" class="card">1</text><text x="970" y="590" class="card">0..1</text>
-  <path d="M375 745 L480 920" class="relation"/><text x="390" y="780" class="card">1</text><text x="450" y="895" class="card">∞</text>
-  <path d="M375 290 C650 420 820 300 1000 285" class="relation"/><text x="790" y="340" class="card">1</text><text x="970" y="300" class="card">∞</text>
+  <!-- explicit segments ensure associations survive ImageMagick conversion -->
+  <line x1="375" y1="250" x2="480" y2="235" stroke="#426986" stroke-width="4"/><text x="388" y="237" class="card">1</text><text x="450" y="220" class="card">∞</text>
+  <line x1="375" y1="330" x2="425" y2="410" stroke="#426986" stroke-width="4"/><line x1="425" y1="410" x2="480" y2="600" stroke="#426986" stroke-width="4"/><text x="385" y="410" class="card">1</text><text x="452" y="550" class="card">∞</text>
+  <line x1="800" y1="235" x2="1000" y2="235" stroke="#426986" stroke-width="4"/><text x="825" y="220" class="card">1</text><text x="970" y="220" class="card">∞</text>
+  <line x1="800" y1="615" x2="1000" y2="605" stroke="#426986" stroke-width="4"/><text x="825" y="600" class="card">1</text><text x="970" y="590" class="card">0..1</text>
+  <line x1="375" y1="745" x2="480" y2="920" stroke="#426986" stroke-width="4"/><text x="390" y="780" class="card">1</text><text x="450" y="895" class="card">∞</text>
+  <line x1="375" y1="290" x2="600" y2="410" stroke="#426986" stroke-width="4"/><line x1="600" y1="410" x2="870" y2="340" stroke="#426986" stroke-width="4"/><line x1="870" y1="340" x2="1000" y2="285" stroke="#426986" stroke-width="4"/><text x="790" y="340" class="card">1</text><text x="970" y="300" class="card">∞</text>
 </svg>
