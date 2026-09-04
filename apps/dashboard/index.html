@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f4f7f8" />
     <meta
       name="description"
-      content="Institute Health Centre doctor availability and environmental monitoring"
+      content="Institute Health Centre environmental and medicine-storage sensor monitoring"
     />
     <title>IHC Information Console</title>
   </head>
@@ -28,17 +28,13 @@
       <main>
         <section class="overview" aria-labelledby="dashboard-title">
           <div>
-            <p class="section-kicker">Health-centre information</p>
-            <h2 id="dashboard-title">Doctors on duty and facility status</h2>
+            <p class="section-kicker">Health-centre monitoring</p>
+            <h2 id="dashboard-title">Facility sensor status</h2>
           </div>
           <p data-last-updated>Waiting for first refresh</p>
         </section>
 
         <section class="summary-grid" aria-label="Health-centre summary">
-          <article>
-            <span>Doctors available</span>
-            <strong data-doctors-available>0</strong>
-          </article>
           <article>
             <span>Online devices</span>
             <strong data-online-count>0</strong>
@@ -58,64 +54,129 @@
         </aside>
         <aside class="loading-banner" data-loading-banner>Loading current monitoring data…</aside>
 
-        <section class="doctor-section" aria-labelledby="doctors-title">
+        <section class="safety-section" aria-labelledby="safety-title">
           <div class="section-heading">
             <div>
-              <p class="section-kicker">Today at the health centre</p>
-              <h2 id="doctors-title">Doctor availability</h2>
+              <p class="section-kicker">At a glance</p>
+              <h2 id="safety-title">Safety wheel</h2>
             </div>
-            <span class="timezone-label">Times shown in IST</span>
+            <button class="view-toggle" type="button" data-detail-toggle aria-expanded="false">
+              Show detailed view
+            </button>
           </div>
-          <div class="doctor-grid" data-doctor-grid aria-live="polite"></div>
-          <p class="roster-note">
-            Availability may change during emergencies. Please confirm with reception.
+          <p class="safety-introduction">
+            Readings move outward as they approach a limit. Anything in the outer red ring needs
+            attention.
           </p>
-        </section>
+          <div
+            class="location-selector"
+            data-location-selector
+            aria-label="Choose a location"
+          ></div>
 
-        <section class="device-section" aria-labelledby="devices-title">
-          <div class="section-heading">
-            <div>
-              <p class="section-kicker">Environmental monitoring</p>
-              <h2 id="devices-title">Sensors and medicine storage</h2>
+          <div class="safety-panel">
+            <div class="wheel-column">
+              <div class="safety-wheel-wrap" data-wheel-wrap>
+                <svg
+                  class="safety-wheel"
+                  data-safety-wheel
+                  viewBox="0 0 440 440"
+                  role="img"
+                  aria-labelledby="wheel-title wheel-description"
+                >
+                  <title id="wheel-title" data-wheel-title>Facility safety status</title>
+                  <desc id="wheel-description" data-wheel-description>
+                    Concentric safety rings for temperature, humidity, smoke, and connection.
+                  </desc>
+                  <circle class="wheel-ring wheel-ring--danger" cx="220" cy="220" r="170" />
+                  <circle class="wheel-ring wheel-ring--caution" cx="220" cy="220" r="128" />
+                  <circle class="wheel-ring wheel-ring--safe" cx="220" cy="220" r="88" />
+                  <g class="wheel-dividers" aria-hidden="true">
+                    <line x1="220" y1="220" x2="340" y2="100" />
+                    <line x1="220" y1="220" x2="340" y2="340" />
+                    <line x1="220" y1="220" x2="100" y2="340" />
+                    <line x1="220" y1="220" x2="100" y2="100" />
+                  </g>
+                  <g class="wheel-labels" aria-hidden="true">
+                    <text x="220" y="26" text-anchor="middle">Temperature</text>
+                    <text x="432" y="225" text-anchor="end">Humidity</text>
+                    <text x="220" y="430" text-anchor="middle">Smoke</text>
+                    <text x="8" y="225">Connection</text>
+                  </g>
+                  <g data-wheel-markers></g>
+                  <circle class="wheel-centre-disc" cx="220" cy="220" r="52" />
+                </svg>
+                <div class="wheel-centre" data-wheel-centre>
+                  <strong data-wheel-centre-label>Loading</strong>
+                  <span data-wheel-centre-location>Facility</span>
+                </div>
+              </div>
+              <div class="ring-key" aria-label="Safety-ring legend">
+                <span class="is-safe">Safe</span>
+                <span class="is-caution">Near limit</span>
+                <span class="is-danger">Danger</span>
+              </div>
+            </div>
+
+            <div class="safety-explanation" aria-live="polite">
+              <p class="safety-state" data-safety-state>Checking sensors</p>
+              <h3 data-safety-headline>Waiting for current readings</h3>
+              <p data-safety-message>The display will update automatically.</p>
+              <div class="plain-metrics" data-plain-metrics></div>
+              <p class="safety-help">
+                Red means staff should check the named location. Exact readings and history remain
+                available in the detailed view.
+              </p>
             </div>
           </div>
-          <div class="device-grid" data-device-grid aria-live="polite"></div>
         </section>
 
-        <section class="content-grid">
-          <section class="chart-panel" aria-labelledby="detail-title">
+        <div class="detailed-view" data-detailed-view hidden>
+          <section class="device-section" aria-labelledby="devices-title">
             <div class="section-heading">
               <div>
-                <p class="section-kicker">Device detail</p>
-                <h2 id="detail-title" data-detail-title>Select a device</h2>
-              </div>
-              <div class="range-controls" aria-label="History period">
-                <button type="button" data-range-hours="1">1h</button>
-                <button type="button" data-range-hours="24" class="is-selected">24h</button>
-                <button type="button" data-range-hours="168">7d</button>
+                <p class="section-kicker">Environmental monitoring</p>
+                <h2 id="devices-title">Sensors and medicine storage</h2>
               </div>
             </div>
-            <form class="custom-range" data-custom-range-form>
-              <label>From <input type="datetime-local" name="from" required /></label>
-              <label>To <input type="datetime-local" name="to" required /></label>
-              <button type="submit">Apply</button>
-            </form>
-            <dl class="detail-summary" data-detail-summary></dl>
-            <div class="chart-frame">
-              <canvas
-                id="trend-chart"
-                aria-label="Selected device temperature and humidity history"
-              ></canvas>
-            </div>
+            <div class="device-grid" data-device-grid aria-live="polite"></div>
           </section>
 
-          <section class="alerts-panel" aria-labelledby="alerts-title">
-            <div class="section-heading">
-              <h2 id="alerts-title">Device alerts</h2>
-            </div>
-            <div data-alert-list></div>
+          <section class="content-grid">
+            <section class="chart-panel" aria-labelledby="detail-title">
+              <div class="section-heading">
+                <div>
+                  <p class="section-kicker">Device detail</p>
+                  <h2 id="detail-title" data-detail-title>Select a device</h2>
+                </div>
+                <div class="range-controls" aria-label="History period">
+                  <button type="button" data-range-hours="1">1h</button>
+                  <button type="button" data-range-hours="24" class="is-selected">24h</button>
+                  <button type="button" data-range-hours="168">7d</button>
+                </div>
+              </div>
+              <form class="custom-range" data-custom-range-form>
+                <label>From <input type="datetime-local" name="from" required /></label>
+                <label>To <input type="datetime-local" name="to" required /></label>
+                <button type="submit">Apply</button>
+              </form>
+              <dl class="detail-summary" data-detail-summary></dl>
+              <div class="chart-frame">
+                <canvas
+                  id="trend-chart"
+                  aria-label="Selected device temperature and humidity history"
+                ></canvas>
+              </div>
+            </section>
+
+            <section class="alerts-panel" aria-labelledby="alerts-title">
+              <div class="section-heading">
+                <h2 id="alerts-title">Device alerts</h2>
+              </div>
+              <div data-alert-list></div>
+            </section>
           </section>
-        </section>
+        </div>
       </main>
 
       <footer>

@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  buildDashboardModel,
-  buildDoctorAvailabilityModel,
-  formatReading,
-} from './dashboardData.js';
+import { buildDashboardModel, buildSafetyWheelModel, formatReading } from './dashboardData.js';
 
 const snapshot = {
   generatedAt: '2026-08-16T09:35:00.000Z',
@@ -52,31 +48,6 @@ const snapshot = {
   ],
   alertRules: [],
   alerts: [],
-  doctors: [
-    {
-      id: 'doctor-1',
-      doctor_code: 'duty_doctor',
-      display_name: 'Duty Doctor',
-      role: 'Medical Officer',
-      department: 'General Medicine',
-      room: 'Consultation Room 1',
-      display_order: 1,
-      is_active: true,
-    },
-  ],
-  doctorAvailability: [
-    {
-      id: 'slot-1',
-      doctor_id: 'doctor-1',
-      weekday: 0,
-      start_time: '09:00:00',
-      end_time: '17:00:00',
-      availability_type: 'available',
-      note: 'General consultation',
-      valid_from: null,
-      valid_until: null,
-    },
-  ],
 };
 
 describe('dashboard data model', () => {
@@ -94,21 +65,46 @@ describe('dashboard data model', () => {
     });
   });
 
-  it('calculates current doctor availability in the health-centre time zone', () => {
-    const doctors = buildDoctorAvailabilityModel(snapshot);
-
-    expect(doctors[0]).toMatchObject({
-      display_name: 'Duty Doctor',
-      availabilityKind: 'available',
-      availabilityLabel: 'Available now',
-      scheduleLabel: '09:00–17:00',
-    });
-    expect(buildDashboardModel(snapshot).summary.doctorsAvailable).toBe(1);
-  });
-
   it('formats readings for compact dashboard labels', () => {
     expect(formatReading(undefined)).toBe('--');
     expect(formatReading({ metric: 'humidity', value: 55.25 })).toBe('55.3 % RH');
     expect(formatReading({ metric: 'detector_alarm', value: 0 })).toBe('Clear');
+  });
+
+  it('moves threshold breaches into danger while keeping detector state explicit', () => {
+    const wheel = buildSafetyWheelModel(
+      {
+        ...snapshot,
+        readings: [
+          ...snapshot.readings,
+          {
+            id: 3,
+            device_id: 'device-1',
+            metric: 'detector_alarm',
+            value: 0,
+            unit: 'boolean',
+            quality: 'good',
+            recorded_at: '2026-08-16T09:34:30.000Z',
+            received_at: '2026-08-16T09:35:00.000Z',
+          },
+        ],
+      },
+      'fridge_male_ward',
+    );
+
+    expect(wheel).toMatchObject({
+      title: 'Fridge Male Ward',
+      status: 'danger',
+      headline: 'Attention needed',
+    });
+    expect(wheel.metrics.find((metric) => metric.id === 'temperature')).toMatchObject({
+      status: 'danger',
+      statusLabel: 'Too high',
+    });
+    expect(wheel.metrics.find((metric) => metric.id === 'temperature').risk).toBeGreaterThan(0.8);
+    expect(wheel.metrics.find((metric) => metric.id === 'smoke')).toMatchObject({
+      reading: 'Clear',
+      status: 'safe',
+    });
   });
 });

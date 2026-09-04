@@ -563,10 +563,12 @@ IHCAutomation/
 |-- prisma/
 |   |-- migrations/
 |   `-- schema.prisma
-|-- docs/
+|-- documents/
+|   |-- guides/
+|   |-- plans/
+|   `-- system-design/
 |-- .env.example
 |-- README.md
-`-- PROJECT_PLAN.md
 ```
 
 ## 19. Testing Strategy

@@ -1,18 +1,17 @@
 # IHC Automation
 
 Raspberry Pi information console and environmental monitoring for the institute health centre. The
-target architecture displays an approved public doctor roster, collects sensor readings through the
-API, stores them locally on the Raspberry Pi 3 through an ORM-backed SQLite database, and presents
-live read-only status on a lightweight dashboard built with
+target architecture collects sensor readings through the API, stores them locally on the Raspberry
+Pi 3 through an ORM-backed SQLite database, and presents live read-only status on a lightweight dashboard built with
 plain HTML, CSS, JavaScript, and Chart.js.
 
 ## Local services
 
-| Service   | Package          | Local address                  | Purpose                               |
-| --------- | ---------------- | ------------------------------ | ------------------------------------- |
-| Dashboard | `@ihc/dashboard` | <http://localhost:5173>        | Doctor availability and monitoring UI |
-| API       | `@ihc/api`       | <http://localhost:4000/health> | Ingestion and dashboard data API      |
-| Simulator | `@ihc/simulator` | <http://localhost:4100/health> | Simulated sensor process              |
+| Service   | Package          | Local address                  | Purpose                          |
+| --------- | ---------------- | ------------------------------ | -------------------------------- |
+| Dashboard | `@ihc/dashboard` | <http://localhost:5173>        | Sensor monitoring UI             |
+| API       | `@ihc/api`       | <http://localhost:4000/health> | Ingestion and dashboard data API |
+| Simulator | `@ihc/simulator` | <http://localhost:4100/health> | Simulated sensor process         |
 
 The simulator generates deterministic normal and failure scenarios through the same authenticated
 ingestion contract planned for the ESP32 devices.
@@ -33,9 +32,10 @@ Copy-Item .env.example .env
 npm.cmd run dev
 ```
 
-Open <http://localhost:5173>. The dashboard polls the API and shows doctor availability, device
-status, recent readings, active alerts, and Chart.js trends. A cached snapshot remains visible and
-is explicitly labelled when the API or internet connection is unavailable.
+Open <http://localhost:5173>. The dashboard polls the API and shows device status, recent readings,
+active alerts, and a threshold-driven safety wheel. The wheel is the default plain-language view;
+device cards and Chart.js trends are available through the detailed-view control. A cached snapshot
+remains visible and is explicitly labelled when the API or internet connection is unavailable.
 
 Run a single application when needed:
 
@@ -60,7 +60,7 @@ Run every check in sequence with `npm.cmd run check`.
 ## Environment variables
 
 Create a local `.env` for machine-specific values. The `.env` file and all other environment files
-are ignored by Git. Never place device-ingestion or administrator credentials in dashboard source code, device firmware, a
+are ignored by Git. Never place device-ingestion credentials in dashboard source code, device firmware, a
 commit, screenshot, or chat message.
 
 The intended local-database deployment keeps the SQLite database path server-side:
@@ -72,16 +72,11 @@ DATABASE_URL="file:/var/lib/ihc-automation/ihc-monitoring.db"
 The dashboard accesses the database only through the local API. Database files and ORM credentials
 must never be exposed to the browser or physical devices.
 
-Set `ADMIN_API_KEY` to a separate long random value to enable the local roster editor at
-`http://127.0.0.1:4000/admin.html`. The editor accepts requests only from the Pi itself and retains
-the key only for the current browser tab. Do not reuse the device-ingestion token.
-
 ## Local database and ORM
 
 The target deployment uses an ORM (Prisma) with a local SQLite database stored on the Raspberry Pi.
-The ORM schema and migrations will define the devices, readings, alert rules, alerts, and doctor
-roster tables. This keeps monitoring data within the institute network and removes the need for a
-hosted database account.
+The ORM schema and migrations will define the devices, readings, alert rules, and alerts. This keeps
+monitoring data within the institute network and removes the need for a hosted database account.
 
 > The current working code still uses Supabase until the separate database-migration task is
 > implemented. Do not remove the existing environment values or `supabase/` files before that task.
@@ -155,10 +150,9 @@ The browser reads from the API only:
 GET /api/v1/dashboard
 ```
 
-The endpoint returns doctors, recurring availability slots, devices, recent readings, enabled alert
-rules, and recent alerts as one compact snapshot. The public dashboard contains no write,
-acknowledgement, configuration, patient, or login controls. Roster changes are made through an
-localhost-only, token-protected roster editor, never through the public screen.
+The endpoint returns devices, recent readings, enabled alert rules, and recent alerts as one compact
+snapshot. The public dashboard contains no write, acknowledgement, configuration, patient, or login
+controls.
 
 ## Raspberry Pi deployment
 
@@ -167,7 +161,7 @@ serves the compiled dashboard on port 4000, and Chromium opens it in kiosk mode 
 nodes remain distributed at each refrigerator and room and send readings to the Pi over the local
 network.
 
-See [Raspberry Pi deployment](docs/RASPBERRY_PI_DEPLOYMENT.md) for hardware, systemd, kiosk,
+See [Raspberry Pi deployment](documents/guides/RASPBERRY_PI_DEPLOYMENT.md) for hardware, systemd, kiosk,
 security, reliability, and update instructions.
 
 ## Repository map
@@ -178,22 +172,20 @@ IHCAutomation/
 |   |-- api/                 Express service
 |   `-- dashboard/           Plain HTML/CSS/JS and Chart.js interface
 |-- deploy/raspberry-pi/     systemd and kiosk deployment files
-|-- docs/                    Implementation checklists
+|-- documents/               Guides, plans, diagrams, and internal notes
 |-- packages/
 |   `-- shared/              Cross-service TypeScript contracts
 |-- simulator/               Simulated sensor process
 |-- prisma/
 |   |-- schema.prisma        Local SQLite ORM schema
 |   `-- migrations/          Local database migrations
-|-- plans/
-|   |-- HARDWARE_AND_BUDGET.md
-|   `-- PROJECT_PLAN.md
 `-- README.md
 ```
 
 ## Project documents
 
-- [Full project plan](plans/PROJECT_PLAN.md)
-- [Hardware and budget guide](plans/HARDWARE_AND_BUDGET.md)
-- [Raspberry Pi deployment guide](docs/RASPBERRY_PI_DEPLOYMENT.md)
-- [Phase 2 checklist](docs/PHASE_2_CHECKLIST.md)
+- [Document index](documents/INDEX.md)
+- [Full project plan](documents/plans/PROJECT_PLAN.md)
+- [Hardware and budget guide](documents/plans/HARDWARE_AND_BUDGET.md)
+- [Raspberry Pi deployment guide](documents/guides/RASPBERRY_PI_DEPLOYMENT.md)
+- [Phase 2 checklist](documents/guides/PHASE_2_CHECKLIST.md)

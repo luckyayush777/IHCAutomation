@@ -186,13 +186,13 @@ The worktree was already dirty before this handoff file was added:
 D  .env.example
 D  HARDWARE_AND_BUDGET.md
 D  PROJECT_PLAN.md
-?? plans/
+?? documents/plans/
 ```
 
-The planning documents now exist at `plans/PROJECT_PLAN.md` and
-`plans/HARDWARE_AND_BUDGET.md`. Treat this as user work and do not move or revert it without an
-explicit request. README links now point to the `plans/` paths. The root `.env.example` is still
-deleted and was not found under `plans/`; determine whether that deletion was intentional before
+The planning documents now exist at `documents/plans/PROJECT_PLAN.md` and
+`documents/plans/HARDWARE_AND_BUDGET.md`. Treat this as user work and do not move or revert it without an
+explicit request. README links now point to the `documents/plans/` paths. The root `.env.example` is still
+deleted and was not found under `documents/plans/`; determine whether that deletion was intentional before
 committing.
 
 Additional Phase 2 changes currently in the worktree:
@@ -202,7 +202,7 @@ Additional Phase 2 changes currently in the worktree:
 - `supabase/seed.sql` now idempotently seeds six devices and two refrigerator rules.
 - `packages/shared/src/schema.test.ts` added for schema/RLS structure checks.
 - `supabase` package dev dependency added in `package.json` / `package-lock.json`.
-- `README.md`, `docs/PHASE_2_CHECKLIST.md`, and `plans/PROJECT_PLAN.md` updated for Phase 2.
+- `README.md`, `documents/guides/PHASE_2_CHECKLIST.md`, and `documents/plans/PROJECT_PLAN.md` updated for Phase 2.
 
 ## Phase 2 Completion Notes
 
@@ -356,8 +356,8 @@ qualified technician for fixed wiring, installation, and calibration approval.
 
 ## Reference Documents
 
-- `plans/PROJECT_PLAN.md`: detailed architecture, schema outline, phases, acceptance criteria, and
+- `documents/plans/PROJECT_PLAN.md`: detailed architecture, schema outline, phases, acceptance criteria, and
   safety requirements.
-- `plans/HARDWARE_AND_BUDGET.md`: beginner hardware guide and provisional budget.
-- `docs/PHASE_2_CHECKLIST.md`: Supabase setup and public read-only Phase 2 boundary.
+- `documents/plans/HARDWARE_AND_BUDGET.md`: beginner hardware guide and provisional budget.
+- `documents/guides/PHASE_2_CHECKLIST.md`: Supabase setup and public read-only Phase 2 boundary.
 - `README.md`: package layout, commands, and local development instructions.

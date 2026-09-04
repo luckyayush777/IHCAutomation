@@ -1,6 +1,6 @@
 import Chart from 'chart.js/auto';
 
-import { buildDashboardModel, formatReading } from './dashboardData.js';
+import { buildDashboardModel, buildSafetyWheelModel, formatReading } from './dashboardData.js';
 import './styles.css';
 
 const apiUrl =
@@ -15,22 +15,35 @@ const elements = {
   customRangeForm: document.querySelector('[data-custom-range-form]'),
   detailSummary: document.querySelector('[data-detail-summary]'),
   detailTitle: document.querySelector('[data-detail-title]'),
-  doctorsAvailable: document.querySelector('[data-doctors-available]'),
-  doctorGrid: document.querySelector('[data-doctor-grid]'),
+  detailedView: document.querySelector('[data-detailed-view]'),
+  detailToggle: document.querySelector('[data-detail-toggle]'),
   deviceGrid: document.querySelector('[data-device-grid]'),
   errorBanner: document.querySelector('[data-error-banner]'),
   lastUpdated: document.querySelector('[data-last-updated]'),
   loadingBanner: document.querySelector('[data-loading-banner]'),
+  locationSelector: document.querySelector('[data-location-selector]'),
   offlineCount: document.querySelector('[data-offline-count]'),
   onlineCount: document.querySelector('[data-online-count]'),
+  plainMetrics: document.querySelector('[data-plain-metrics]'),
   rangeControls: document.querySelector('.range-controls'),
   serviceState: document.querySelector('[data-service-state]'),
+  safetyHeadline: document.querySelector('[data-safety-headline]'),
+  safetyMessage: document.querySelector('[data-safety-message]'),
+  safetyState: document.querySelector('[data-safety-state]'),
   consoleClock: document.querySelector('[data-console-clock]'),
+  wheelCentre: document.querySelector('[data-wheel-centre]'),
+  wheelCentreLabel: document.querySelector('[data-wheel-centre-label]'),
+  wheelCentreLocation: document.querySelector('[data-wheel-centre-location]'),
+  wheelDescription: document.querySelector('[data-wheel-description]'),
+  wheelMarkers: document.querySelector('[data-wheel-markers]'),
+  wheelTitle: document.querySelector('[data-wheel-title]'),
 };
 const chartContext = document.querySelector('#trend-chart');
 let trendChart;
 let overviewModel;
+let latestSnapshot;
 let selectedDeviceCode;
+let selectedWheelDeviceCode = null;
 let selectedRange = { hours: 24 };
 
 function setText(element, value) {
@@ -71,33 +84,97 @@ function cachedSnapshot() {
     return null;
   }
 }
-function renderDoctors(doctors) {
-  if (!elements.doctorGrid) return;
-  if (!doctors.length) {
-    elements.doctorGrid.innerHTML =
-      '<p class="empty-state">The public doctor roster has not been configured.</p>';
-    return;
-  }
-  elements.doctorGrid.innerHTML = doctors
+
+const wheelMetricPositions = {
+  temperature: { angle: -90, shortLabel: 'T' },
+  humidity: { angle: 0, shortLabel: 'H' },
+  smoke: { angle: 90, shortLabel: 'S' },
+  connection: { angle: 180, shortLabel: 'C' },
+};
+
+function markerPosition(metric) {
+  const position = wheelMetricPositions[metric.id];
+  const radius = 55 + Math.max(0, Math.min(1, metric.risk)) * 110;
+  const radians = (position.angle * Math.PI) / 180;
+  return {
+    ...position,
+    x: 220 + Math.cos(radians) * radius,
+    y: 220 + Math.sin(radians) * radius,
+  };
+}
+
+function renderLocationSelector(devices) {
+  if (!elements.locationSelector) return;
+  const options = [{ device_code: '', name: 'Whole facility' }, ...devices];
+  elements.locationSelector.innerHTML = options
+    .map((device) => {
+      const selected = (device.device_code || null) === selectedWheelDeviceCode;
+      return `<button type="button" data-wheel-device="${escapeHtml(device.device_code)}" class="${selected ? 'is-selected' : ''}" aria-pressed="${selected}">${escapeHtml(device.name)}</button>`;
+    })
+    .join('');
+}
+
+function renderSafetyWheel(snapshot) {
+  const model = buildSafetyWheelModel(snapshot, selectedWheelDeviceCode);
+  const statusLabels = {
+    safe: 'SAFE',
+    caution: 'CAUTION',
+    danger: model.metrics.some((metric) => metric.id === 'smoke' && metric.status === 'danger')
+      ? 'ALARM'
+      : 'CHECK',
+    unknown: 'WAITING',
+  };
+  const readableStatus = {
+    safe: 'Conditions normal',
+    caution: 'Close to a limit',
+    danger: 'Action required',
+    unknown: 'Status unavailable',
+  };
+
+  setText(elements.wheelTitle, `${model.title}: ${readableStatus[model.status]}`);
+  setText(elements.wheelDescription, model.message);
+  setText(elements.wheelCentreLabel, statusLabels[model.status]);
+  setText(elements.wheelCentreLocation, model.title);
+  setText(elements.safetyState, readableStatus[model.status]);
+  setText(elements.safetyHeadline, model.headline);
+  setText(elements.safetyMessage, model.message);
+  elements.wheelCentre.className = `wheel-centre is-${model.status}`;
+  elements.safetyState.className = `safety-state is-${model.status}`;
+
+  elements.wheelMarkers.innerHTML = model.metrics
+    .map((metric) => {
+      const position = markerPosition(metric);
+      return `<g class="wheel-marker is-${escapeHtml(metric.status)}" transform="translate(${position.x.toFixed(1)} ${position.y.toFixed(1)})">
+        <title>${escapeHtml(metric.label)}: ${escapeHtml(metric.reading)}, ${escapeHtml(metric.statusLabel)}</title>
+        <circle r="17"></circle>
+        <text y="1" text-anchor="middle" dominant-baseline="middle">${position.shortLabel}</text>
+      </g>`;
+    })
+    .join('');
+
+  elements.plainMetrics.innerHTML = model.metrics
     .map(
-      (doctor) => `
-        <article class="doctor-card is-${escapeHtml(doctor.availabilityKind)}">
-          <div class="doctor-card__status"><span class="availability-dot" aria-hidden="true"></span>${escapeHtml(doctor.availabilityLabel)}</div>
-          <h3>${escapeHtml(doctor.display_name)}</h3>
-          <p>${escapeHtml(doctor.role)}${doctor.department ? ` · ${escapeHtml(doctor.department)}` : ''}</p>
-          <dl><div><dt>Location</dt><dd>${escapeHtml(doctor.room ?? 'Ask reception')}</dd></div><div><dt>Hours</dt><dd>${escapeHtml(doctor.scheduleLabel)}</dd></div></dl>
-          ${doctor.note ? `<small>${escapeHtml(doctor.note)}</small>` : ''}
-        </article>`,
+      (metric) => `<article class="plain-metric is-${escapeHtml(metric.status)}">
+        <span class="plain-metric__dot" aria-hidden="true"></span>
+        <div><strong>${escapeHtml(metric.label)}</strong><small>${escapeHtml(metric.source)}</small></div>
+        <div class="plain-metric__reading"><strong>${escapeHtml(metric.reading)}</strong><small>${escapeHtml(metric.statusLabel)}</small></div>
+      </article>`,
     )
     .join('');
 }
+
 function renderOverview(snapshot, isCached = false) {
+  latestSnapshot = snapshot;
   overviewModel = buildDashboardModel(snapshot);
   selectedDeviceCode ??= overviewModel.devices[0]?.device_code;
+  if (
+    selectedWheelDeviceCode &&
+    !overviewModel.devices.some((device) => device.device_code === selectedWheelDeviceCode)
+  )
+    selectedWheelDeviceCode = null;
   setText(elements.onlineCount, String(overviewModel.summary.online));
   setText(elements.offlineCount, String(overviewModel.summary.offline));
   setText(elements.activeAlerts, String(overviewModel.summary.activeAlerts));
-  setText(elements.doctorsAvailable, String(overviewModel.summary.doctorsAvailable));
   setText(
     elements.lastUpdated,
     `${isCached ? 'Offline copy from' : 'Updated'} ${overviewModel.refreshedLabel}`,
@@ -106,11 +183,14 @@ function renderOverview(snapshot, isCached = false) {
     elements.serviceState,
     isCached
       ? 'Offline copy'
-      : overviewModel.summary.offline > 0
+      : overviewModel.summary.offline > 0 ||
+          overviewModel.summary.alert > 0 ||
+          overviewModel.summary.activeAlerts > 0
         ? 'Needs attention'
         : 'Monitoring live',
   );
-  renderDoctors(overviewModel.doctors);
+  renderLocationSelector(overviewModel.devices);
+  renderSafetyWheel(snapshot);
   renderDevices(overviewModel.devices);
 }
 function renderDevices(devices) {
@@ -230,7 +310,8 @@ async function refreshDashboard() {
   try {
     renderOverview(await fetchSnapshot());
     elements.errorBanner?.setAttribute('hidden', '');
-    if (selectedDeviceCode) await selectDevice(selectedDeviceCode);
+    if (!elements.detailedView?.hidden && selectedDeviceCode)
+      await selectDevice(selectedDeviceCode);
   } catch (error) {
     console.error(error instanceof Error ? error.message : 'Dashboard refresh failed');
     elements.errorBanner?.removeAttribute('hidden');
@@ -241,9 +322,33 @@ async function refreshDashboard() {
     elements.loadingBanner?.setAttribute('hidden', '');
   }
 }
+elements.locationSelector?.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-wheel-device]');
+  if (!button || !latestSnapshot) return;
+  selectedWheelDeviceCode = button.dataset.wheelDevice || null;
+  if (selectedWheelDeviceCode) selectedDeviceCode = selectedWheelDeviceCode;
+  renderLocationSelector(overviewModel?.devices ?? []);
+  renderSafetyWheel(latestSnapshot);
+  renderDevices(overviewModel?.devices ?? []);
+});
+elements.detailToggle?.addEventListener('click', () => {
+  if (!elements.detailedView) return;
+  const willOpen = elements.detailedView.hidden;
+  elements.detailedView.hidden = !willOpen;
+  elements.detailToggle.setAttribute('aria-expanded', String(willOpen));
+  setText(elements.detailToggle, willOpen ? 'Hide detailed view' : 'Show detailed view');
+  if (willOpen && selectedDeviceCode) void selectDevice(selectedDeviceCode);
+});
 elements.deviceGrid?.addEventListener('click', (event) => {
   const card = event.target.closest('[data-device-code]');
-  if (card) void selectDevice(card.dataset.deviceCode);
+  if (card) {
+    selectedWheelDeviceCode = card.dataset.deviceCode;
+    if (latestSnapshot) {
+      renderLocationSelector(overviewModel?.devices ?? []);
+      renderSafetyWheel(latestSnapshot);
+    }
+    void selectDevice(card.dataset.deviceCode);
+  }
 });
 elements.rangeControls?.addEventListener('click', (event) => {
   const button = event.target.closest('[data-range-hours]');
