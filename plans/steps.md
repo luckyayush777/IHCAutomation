@@ -52,7 +52,7 @@ the same system.
     and identifying an offline device.
 
 14. **Class diagram**  
-    Include `Device`, `Reading`, `AlertRule`, `Alert`, and `AlertConditionState` with their
+    Include `Device`, `Reading`, `AlertRule`, `Alert`, and `AlertEvaluationState` with their
     relationships.
 
 15. **ER diagram and data design**  

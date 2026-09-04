@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="747" viewBox="0 0 1800 1120">
+  <defs>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #152436; }
+      .title { font-size: 34px; font-weight: 700; }
+      .subtitle { font-size: 17px; fill: #506176; }
+      .zone { fill: #f6f9fc; stroke: #cbd8e6; stroke-width: 2; }
+      .section { font-size: 19px; font-weight: 700; fill: #274866; }
+      .box { fill: #ffffff; stroke: #7295b7; stroke-width: 2; }
+      .edge { fill: #ebf6ff; stroke: #4d91c5; stroke-width: 2; }
+      .core { fill: #edf5ef; stroke: #5a9b68; stroke-width: 2; }
+      .safety { fill: #fff4e7; stroke: #d78b35; stroke-width: 2; }
+      .person { fill: #f4effc; stroke: #9278bd; stroke-width: 2; }
+      .head { font-size: 18px; font-weight: 700; }
+      .body { font-size: 15px; fill: #3f5368; }
+      .tiny { font-size: 13px; fill: #3f5368; }
+      .arrow { stroke: #426986; stroke-width: 2.5; fill: none; marker-end: url(#arrow); }
+      .dash { stroke-dasharray: 8 7; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#426986"/></marker>
+  </defs>
+  <g transform="scale(0.65)">
+
+  <rect width="1800" height="1120" fill="#ffffff"/>
+  <text x="70" y="62" class="title">Institute Health Centre Automation — V1 System Design</text>
+  <text x="70" y="92" class="subtitle">V1 monitoring, alerts, local dashboard, and doctor availability</text>
+
+  <rect x="55" y="125" width="1690" height="845" rx="18" class="zone"/>
+  <text x="85" y="164" class="section">INSTITUTE HEALTH CENTRE</text>
+
+  <rect x="90" y="200" width="315" height="325" rx="14" class="edge"/>
+  <text x="115" y="235" class="section">2 × Refrigerator nodes</text>
+  <rect x="115" y="260" width="265" height="70" rx="10" class="box"/>
+  <text x="135" y="290" class="head">Temperature probe</text>
+  <text x="135" y="314" class="body">DS18B20 / optional PT100</text>
+  <rect x="115" y="365" width="265" height="120" rx="10" class="box"/>
+  <text x="135" y="397" class="head">ESP32 controller</text>
+  <text x="135" y="421" class="body">Reads sensor • Wi-Fi telemetry</text>
+  <text x="135" y="445" class="body">Local LED + test buzzer</text>
+  <path d="M247 330 V365" class="arrow"/>
+
+  <rect x="90" y="575" width="315" height="335" rx="14" class="edge"/>
+  <text x="115" y="610" class="section">4 × Room nodes</text>
+  <rect x="115" y="635" width="265" height="70" rx="10" class="box"/>
+  <text x="135" y="665" class="head">SHT40 sensor</text>
+  <text x="135" y="689" class="body">Temperature + humidity</text>
+  <rect x="115" y="740" width="265" height="120" rx="10" class="box"/>
+  <text x="135" y="772" class="head">ESP32 controller</text>
+  <text x="135" y="796" class="body">Reads sensors and alarm relay</text>
+  <text x="135" y="820" class="body">Local LED + test buzzer</text>
+  <path d="M247 705 V740" class="arrow"/>
+
+  <rect x="480" y="200" width="340" height="710" rx="14" class="core"/>
+  <text x="505" y="235" class="section">Raspberry Pi 3 central console</text>
+  <rect x="510" y="270" width="280" height="110" rx="10" class="box"/>
+  <text x="530" y="302" class="head">Ingestion API</text>
+  <text x="530" y="326" class="body">Node.js + Express + TypeScript</text>
+  <text x="530" y="350" class="body">Auth • validation • deduplication</text>
+  <rect x="510" y="420" width="280" height="105" rx="10" class="box"/>
+  <text x="530" y="452" class="head">Alert engine</text>
+  <text x="530" y="476" class="body">Rules • duration • offline checks</text>
+  <text x="530" y="500" class="body">Creates/resolves alert events</text>
+  <rect x="510" y="565" width="280" height="115" rx="10" class="box"/>
+  <text x="530" y="597" class="head">Prisma ORM + SQLite</text>
+  <text x="530" y="621" class="body">Devices • readings • rules</text>
+  <text x="530" y="645" class="body">Alerts • history • doctor roster</text>
+  <rect x="510" y="720" width="280" height="130" rx="10" class="box"/>
+  <text x="530" y="752" class="head">Dashboard / kiosk UI</text>
+  <text x="530" y="776" class="body">Current readings • trends</text>
+  <text x="530" y="800" class="body">Active alerts • device health</text>
+  <text x="530" y="824" class="body">Doctor availability • read-only API</text>
+  <path d="M650 380 V420 M650 525 V565 M650 680 V720" class="arrow"/>
+
+  <rect x="930" y="250" width="300" height="135" rx="14" class="person"/>
+  <text x="955" y="285" class="section">Staff notification</text>
+  <text x="955" y="320" class="head">SMS / selected channel</text>
+  <text x="955" y="346" class="body">Critical-condition notifications</text>
+  <rect x="930" y="460" width="300" height="135" rx="14" class="person"/>
+  <text x="955" y="495" class="section">Reception / staff monitor</text>
+  <text x="955" y="530" class="head">Chromium kiosk display</text>
+  <text x="955" y="556" class="body">Visible operational status</text>
+
+  <rect x="1340" y="365" width="340" height="260" rx="14" class="safety"/>
+  <text x="1365" y="400" class="section">Certified fire system</text>
+  <rect x="1365" y="425" width="290" height="72" rx="10" class="box"/>
+  <text x="1385" y="455" class="head">Approved smoke / heat detectors</text>
+  <text x="1385" y="479" class="body">Vendor-designed and installed</text>
+  <rect x="1365" y="525" width="290" height="72" rx="10" class="box"/>
+  <text x="1385" y="555" class="head">Local audible / visible alarm</text>
+  <text x="1385" y="579" class="body">Operates independently of IoT</text>
+  <path d="M1510 497 V525" class="arrow"/>
+
+  <path d="M405 425 H510" class="arrow"/>
+  <text x="417" y="405" class="tiny">Wi-Fi + HTTPS</text>
+  <path d="M405 800 H455 V325 H510" class="arrow"/>
+  <text x="420" y="780" class="tiny">Wi-Fi + HTTPS</text>
+  <path d="M790 472 H930" class="arrow"/>
+  <path d="M790 785 H880 V528 H930" class="arrow"/>
+  <path d="M1340 510 H1265 V800 H790" class="arrow dash"/>
+  <text x="1030" y="782" class="tiny">Dry-contact relay only: remote reporting to room node/API</text>
+
+  <rect x="85" y="1000" width="1630" height="70" rx="12" fill="#fff9e9" stroke="#e7c770" stroke-width="2"/>
+  <text x="110" y="1030" class="head">Safety boundary:</text>
+  <text x="110" y="1055" class="body">The IoT system supports monitoring and remote reporting; it does not replace certified fire detection, local alarms, suppression, or emergency-response systems.</text>
+  </g>
+</svg>

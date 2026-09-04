@@ -175,7 +175,7 @@ Stores the complete alert lifecycle.
 | `acknowledged_by` | UUID      | Reserved for a future authenticated user |
 | `resolved_at`     | Timestamp | When readings returned to normal         |
 
-### `alert_condition_states`
+### `alert_evaluation_states`
 
 Stores temporary state for alert-delay, recovery-delay, and hysteresis evaluation. Its composite
 primary key is `(rule_id, device_id)`, linking one current condition state to an alert rule and

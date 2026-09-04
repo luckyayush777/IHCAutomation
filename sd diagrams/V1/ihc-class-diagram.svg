@@ -13,8 +13,8 @@
     </style>
   </defs>
   <rect width="1700" height="1050" fill="#fff"/>
-  <text x="60" y="58" class="title">Class Diagram — Planned ORM Data Model</text>
-  <text x="60" y="88" class="subtitle">Prisma/SQLite entities for the IHC Monitoring System</text>
+  <text x="60" y="58" class="title">Class Diagram — V1 Monitoring and Availability Model</text>
+  <text x="60" y="88" class="subtitle">V1 extends monitoring with doctor roster and availability entities</text>
 
   <!-- Device -->
   <rect x="75" y="170" width="285" height="235" rx="8" class="class"/>
@@ -53,10 +53,10 @@
   <text x="1030" y="323" class="field">message: String</text><text x="1030" y="347" class="field">triggerValue: Decimal?</text>
   <text x="1030" y="371" class="field">triggeredAt: DateTime</text><text x="1030" y="395" class="field">resolvedAt: DateTime?</text>
 
-  <!-- AlertConditionState -->
+  <!-- AlertEvaluationState -->
   <rect x="1010" y="525" width="315" height="225" rx="8" class="class"/>
   <rect x="1010" y="525" width="315" height="45" rx="8" class="head"/>
-  <text x="1060" y="554" class="name">AlertConditionState</text>
+  <text x="1060" y="554" class="name">AlertEvaluationState</text>
   <text x="1030" y="597" class="field">ruleId: String [PK, FK]</text><text x="1030" y="621" class="field">deviceId: String [PK, FK]</text>
   <text x="1030" y="645" class="field">violationStartedAt: DateTime?</text><text x="1030" y="669" class="field">recoveryStartedAt: DateTime?</text>
   <text x="1030" y="693" class="field">violationDirection: Direction?</text><text x="1030" y="717" class="field">lastEvaluatedAt: DateTime</text>

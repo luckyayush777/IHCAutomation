@@ -1,0 +1,8 @@
+V1 FEATURE: DOCTOR AVAILABILITY
+
+V1 must add a doctor availability feature. It should maintain an approved public doctor roster and
+recurring availability schedule, expose only information approved for public display, and show the
+current availability on the reception dashboard.
+
+This feature is not part of V0. V0 is limited to environmental monitoring, device health, alert
+rules, alert events, notifications, and history.

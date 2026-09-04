@@ -1,0 +1,139 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1200" viewBox="0 0 1800 1200">
+  <defs>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #172a3b; }
+      .title { font-size: 34px; font-weight: 700; fill: #152436; }
+      .subtitle { font-size: 18px; fill: #506176; }
+      .panelTitle { font-size: 25px; font-weight: 700; }
+      .panelSub { font-size: 16px; fill: #506176; }
+      .head { font-size: 19px; font-weight: 700; }
+      .body { font-size: 15px; fill: #3f5368; }
+      .small { font-size: 13px; fill: #506176; }
+      .v0panel { fill: #f3f8fd; stroke: #4f82ad; stroke-width: 2.5; }
+      .v1panel { fill: #f2f8f3; stroke: #559166; stroke-width: 2.5; }
+      .source { fill: #ffffff; stroke: #667b8e; stroke-width: 2; }
+      .process0 { fill: #e8f3fc; stroke: #4f82ad; stroke-width: 2; }
+      .process1 { fill: #e9f5eb; stroke: #559166; stroke-width: 2; }
+      .cloud0 { fill: #f1edfb; stroke: #7f67af; stroke-width: 2; }
+      .cloud1 { fill: #fff3e7; stroke: #cf7c2b; stroke-width: 2; }
+      .control { fill: #fff9e9; stroke: #d5aa42; stroke-width: 2; }
+      .arrow { stroke: #426986; stroke-width: 2.8; fill: none; marker-end: url(#arrow); }
+      .restore { stroke: #9278bd; stroke-width: 2.5; fill: none; stroke-dasharray: 8 7; marker-end: url(#restoreArrow); }
+      .divider { stroke: #ccd7e2; stroke-width: 2; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#426986"/>
+    </marker>
+    <marker id="restoreArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#9278bd"/>
+    </marker>
+  </defs>
+
+  <rect width="1800" height="1200" fill="#ffffff"/>
+  <text x="60" y="60" class="title">IHC Cloud Backup Architecture — V0 and V1</text>
+  <text x="60" y="94" class="subtitle">Create a consistent SQLite snapshot first; never synchronize or upload the live database file.</text>
+
+  <!-- V0 -->
+  <rect x="55" y="135" width="815" height="755" rx="18" class="v0panel"/>
+  <text x="85" y="180" class="panelTitle" fill="#274866">V0 — Dropbox backup</text>
+  <text x="85" y="208" class="panelSub">Simple initial deployment using timestamped files and rclone copy</text>
+
+  <rect x="115" y="245" width="300" height="115" rx="12" class="source"/>
+  <text x="140" y="282" class="head">Live SQLite database</text>
+  <text x="140" y="310" class="body">Readings, devices, rules, alerts</text>
+  <text x="140" y="334" class="body">Application continues operating</text>
+
+  <rect x="510" y="245" width="300" height="115" rx="12" class="process0"/>
+  <text x="535" y="282" class="head">Snapshot job</text>
+  <text x="535" y="310" class="body">SQLite Backup API or VACUUM INTO</text>
+  <text x="535" y="334" class="body">Write temporary file, then atomic rename</text>
+  <path d="M415 302 H510" class="arrow"/>
+  <text x="430" y="288" class="small">scheduled</text>
+
+  <rect x="510" y="420" width="300" height="125" rx="12" class="process0"/>
+  <text x="535" y="457" class="head">Local snapshot directory</text>
+  <text x="535" y="485" class="body">Timestamped, read-only backup files</text>
+  <text x="535" y="509" class="body">Keep recent copies for offline recovery</text>
+  <text x="535" y="533" class="small">Proposed: 24 hourly + 7 daily</text>
+  <path d="M660 360 V420" class="arrow"/>
+
+  <rect x="510" y="605" width="300" height="120" rx="12" class="process0"/>
+  <text x="535" y="642" class="head">rclone crypt + copy job</text>
+  <text x="535" y="670" class="body">Encrypt client-side; never use live sync</text>
+  <text x="535" y="694" class="body">Retry failures and record upload logs</text>
+  <path d="M660 545 V605" class="arrow"/>
+
+  <rect x="115" y="605" width="300" height="120" rx="12" class="cloud0"/>
+  <text x="140" y="642" class="head">Dropbox backup folder</text>
+  <text x="140" y="670" class="body">Timestamped immutable-style snapshots</text>
+  <text x="140" y="694" class="body">Dedicated application credentials</text>
+  <path d="M510 665 H415" class="arrow"/>
+
+  <rect x="115" y="770" width="695" height="85" rx="12" class="source"/>
+  <text x="140" y="803" class="head">Restore path</text>
+  <text x="140" y="830" class="body">Download to staging → run PRAGMA integrity_check → stop API → replace database → restart and verify</text>
+  <path d="M265 725 V770" class="restore"/>
+
+  <!-- V1 -->
+  <rect x="930" y="135" width="815" height="755" rx="18" class="v1panel"/>
+  <text x="960" y="180" class="panelTitle" fill="#326442">V1 — Backblaze B2 + Restic</text>
+  <text x="960" y="208" class="panelSub">Encrypted, versioned, deduplicated backup repository</text>
+
+  <rect x="990" y="245" width="300" height="115" rx="12" class="source"/>
+  <text x="1015" y="282" class="head">Live SQLite database</text>
+  <text x="1015" y="310" class="body">Monitoring plus doctor availability</text>
+  <text x="1015" y="334" class="body">No patient or clinical records</text>
+
+  <rect x="1385" y="245" width="300" height="115" rx="12" class="process1"/>
+  <text x="1410" y="282" class="head">Snapshot job</text>
+  <text x="1410" y="310" class="body">SQLite Backup API or VACUUM INTO</text>
+  <text x="1410" y="334" class="body">Validate snapshot before backup</text>
+  <path d="M1290 302 H1385" class="arrow"/>
+  <text x="1305" y="288" class="small">scheduled</text>
+
+  <rect x="1385" y="420" width="300" height="125" rx="12" class="process1"/>
+  <text x="1410" y="457" class="head">Restic client on Pi</text>
+  <text x="1410" y="485" class="body">Client-side encryption and snapshots</text>
+  <text x="1410" y="509" class="body">Deduplication, retention, restore tools</text>
+  <text x="1410" y="533" class="small">Password stored separately from repository</text>
+  <path d="M1535 360 V420" class="arrow"/>
+
+  <rect x="1385" y="605" width="300" height="120" rx="12" class="cloud1"/>
+  <text x="1410" y="642" class="head">Private Backblaze B2 bucket</text>
+  <text x="1410" y="670" class="body">Restic repository objects</text>
+  <text x="1410" y="694" class="body">Bucket-scoped application key</text>
+  <path d="M1535 545 V605" class="arrow"/>
+
+  <rect x="990" y="420" width="300" height="125" rx="12" class="process1"/>
+  <text x="1015" y="457" class="head">Retention and verification</text>
+  <text x="1015" y="485" class="body">7 daily · 4 weekly · 6 monthly</text>
+  <text x="1015" y="509" class="body">Scheduled restic check</text>
+  <text x="1015" y="533" class="small">Restic controls deletion with forget/prune</text>
+  <path d="M1385 482 H1290" class="arrow"/>
+
+  <rect x="990" y="770" width="695" height="85" rx="12" class="source"/>
+  <text x="1015" y="803" class="head">Restore path</text>
+  <text x="1015" y="830" class="body">Restic restore to staging → integrity check → stop API → replace database → restart and verify</text>
+  <path d="M1535 725 V770" class="restore"/>
+
+  <!-- Common operational controls -->
+  <rect x="55" y="930" width="1690" height="210" rx="16" class="control"/>
+  <text x="85" y="972" class="panelTitle" fill="#78591d">Controls required in both versions</text>
+  <line x1="600" y1="995" x2="600" y2="1110" class="divider"/>
+  <line x1="1160" y1="995" x2="1160" y2="1110" class="divider"/>
+
+  <text x="90" y="1015" class="head">Scheduling and failure handling</text>
+  <text x="90" y="1045" class="body">• systemd timer runs snapshots and uploads</text>
+  <text x="90" y="1071" class="body">• retain locally when internet is unavailable</text>
+  <text x="90" y="1097" class="body">• alert staff after repeated backup failures</text>
+
+  <text x="635" y="1015" class="head">Security</text>
+  <text x="635" y="1045" class="body">• private cloud location; never publish links</text>
+  <text x="635" y="1071" class="body">• least-privilege credentials outside source control</text>
+  <text x="635" y="1097" class="body">• encrypt backups and protect the recovery key</text>
+
+  <text x="1195" y="1015" class="head">Recovery assurance</text>
+  <text x="1195" y="1045" class="body">• follow the 3-2-1 principle</text>
+  <text x="1195" y="1071" class="body">• run integrity checks after snapshot creation</text>
+  <text x="1195" y="1097" class="body">• perform and document a monthly test restore</text>
+</svg>
