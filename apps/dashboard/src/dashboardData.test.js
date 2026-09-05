@@ -107,4 +107,104 @@ describe('dashboard data model', () => {
       status: 'safe',
     });
   });
+
+  it.each([
+    ['invalid safe value', { value: 3.5, quality: 'invalid' }],
+    ['invalid high value', { value: 7, quality: 'invalid' }],
+    ['suspect value', { value: 3.5, quality: 'suspect' }],
+    ['stale value', { value: 3.5, recorded_at: '2026-08-16T08:00:00.000Z' }],
+    ['future timestamp', { value: 3.5, recorded_at: '2026-08-16T09:36:00.000Z' }],
+  ])('marks %s unavailable instead of safe or a threshold alarm', (_label, overrides) => {
+    const data = {
+      ...snapshot,
+      devices: [snapshot.devices[0]],
+      readings: [{ ...snapshot.readings[0], ...overrides }],
+    };
+    const model = buildSafetyWheelModel(data, 'fridge_male_ward');
+    expect(model.status).toBe('unknown');
+    expect(model.metrics.find((metric) => metric.id === 'temperature')).toMatchObject({
+      status: 'unknown',
+      reading: '--',
+      unavailable: true,
+    });
+    expect(buildDashboardModel(data).devices[0].statusLabel).toBe('Sensor data unavailable');
+  });
+
+  it('does not report an online fridge without temperature data as safe', () => {
+    const data = { ...snapshot, devices: [snapshot.devices[0]], readings: [] };
+    expect(buildSafetyWheelModel(data).status).toBe('unknown');
+  });
+
+  it('does not let a healthy device hide another device with missing sensor data', () => {
+    const data = {
+      ...snapshot,
+      devices: [
+        snapshot.devices[0],
+        { ...snapshot.devices[0], id: 'device-3', device_code: 'fridge_female_ward' },
+      ],
+      readings: [{ ...snapshot.readings[0], value: 3.5 }],
+    };
+    expect(buildSafetyWheelModel(data).status).toBe('unknown');
+  });
+
+  it('ignores sensors that are not fitted to a fridge', () => {
+    const data = {
+      ...snapshot,
+      devices: [snapshot.devices[0]],
+      readings: [{ ...snapshot.readings[0], value: 3.5 }],
+    };
+    expect(buildSafetyWheelModel(data)).toMatchObject({ status: 'safe', title: 'Whole facility' });
+  });
+
+  it('keeps an acknowledged alert visible even when the current sample is normal', () => {
+    const data = {
+      ...snapshot,
+      devices: [snapshot.devices[0]],
+      readings: [{ ...snapshot.readings[0], value: 3.5 }],
+      alertRules: [
+        {
+          id: 'r1',
+          device_id: 'device-1',
+          metric: 'temperature',
+          minimum_value: 2,
+          maximum_value: 5,
+          enabled: true,
+        },
+      ],
+      alerts: [{ id: 'a1', rule_id: 'r1', device_id: 'device-1', status: 'acknowledged' }],
+    };
+    expect(buildSafetyWheelModel(data).status).toBe('danger');
+    expect(buildDashboardModel(data).summary.activeAlerts).toBe(1);
+  });
+
+  it('ages cached readings against the current time', () => {
+    const data = {
+      ...snapshot,
+      devices: [snapshot.devices[0]],
+      readings: [{ ...snapshot.readings[0], value: 3.5 }],
+    };
+    const model = buildSafetyWheelModel(data, undefined, '2026-08-16T09:45:00.000Z');
+    expect(model.status).not.toBe('safe');
+    expect(model.metrics.find((metric) => metric.id === 'temperature').statusLabel).toBe(
+      'Reading stale',
+    );
+  });
+
+  it('does not treat an invalid detector value as an alarm or all-clear', () => {
+    const data = {
+      ...snapshot,
+      devices: [{ ...snapshot.devices[0], device_type: 'room_monitor' }],
+      readings: [
+        { ...snapshot.readings[0], value: 3.5 },
+        { ...snapshot.readings[0], metric: 'humidity', value: 50 },
+        { ...snapshot.readings[0], metric: 'detector_alarm', value: 1, quality: 'invalid' },
+      ],
+    };
+    const model = buildSafetyWheelModel(data);
+    expect(model.status).toBe('unknown');
+    expect(model.metrics.find((metric) => metric.id === 'smoke')).toMatchObject({
+      status: 'unknown',
+      statusLabel: 'Sensor fault',
+    });
+  });
 });

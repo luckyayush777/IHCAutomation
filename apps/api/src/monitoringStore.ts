@@ -36,6 +36,7 @@ export interface DashboardAlertRuleRecord {
   duration_seconds: number;
   severity: string;
   enabled: boolean;
+  max_sample_gap_seconds?: number;
 }
 
 export interface DashboardAlertRecord {
@@ -105,28 +106,13 @@ export class SupabaseMonitoringStore implements MonitoringStore {
     request: ReadingIngestionRequest,
     receivedAt: string,
   ): Promise<void> {
-    const readings = request.readings.map((reading) => ({
-      device_id: deviceId,
-      metric: reading.metric,
-      value: reading.value,
-      unit: reading.unit,
-      quality: reading.quality ?? 'good',
-      recorded_at: reading.recordedAt,
-      received_at: receivedAt,
-    }));
-
-    await this.request('readings?on_conflict=device_id,metric,recorded_at', {
+    await this.request('rpc/ingest_device_readings', {
       method: 'POST',
-      headers: { prefer: 'resolution=ignore-duplicates,return=minimal' },
-      body: JSON.stringify(readings),
-    });
-
-    await this.request(`devices?id=eq.${deviceId}`, {
-      method: 'PATCH',
       headers: { prefer: 'return=minimal' },
       body: JSON.stringify({
-        last_seen_at: receivedAt,
-        status: 'online',
+        p_device_id: deviceId,
+        p_readings: request.readings,
+        p_received_at: receivedAt,
       }),
     });
   }
@@ -176,16 +162,35 @@ export class SupabaseMonitoringStore implements MonitoringStore {
     if (query.from) readingsQuery.append('recorded_at', `gte.${query.from}`);
     if (query.to) readingsQuery.append('recorded_at', `lte.${query.to}`);
 
-    const [readingsResponse, alertRulesResponse, alertsResponse] = await Promise.all([
+    const alertSelect =
+      'id,rule_id,device_id,status,message,trigger_value,triggered_at,acknowledged_at,resolved_at';
+    const openQuery = new URLSearchParams({
+      select: alertSelect,
+      status: 'in.(active,acknowledged)',
+      order: 'id.asc',
+      limit: '500',
+    });
+    const historyQuery = new URLSearchParams({
+      select: alertSelect,
+      status: 'eq.resolved',
+      order: 'triggered_at.desc,id.desc',
+      limit: '50',
+    });
+    if (query.deviceCode) {
+      const filter = `in.(${devices.map((device) => device.id).join(',')})`;
+      for (const params of [openQuery, historyQuery]) {
+        if (devices.length) params.set('device_id', filter);
+        else params.set('device_id', 'is.null');
+      }
+    }
+    const [readingsResponse, alertRulesResponse, alertsResponse, openAlerts] = await Promise.all([
       this.request(`readings?${readingsQuery.toString()}`, { method: 'GET' }),
       this.request(
-        'alert_rules?select=id,name,device_id,metric,minimum_value,maximum_value,duration_seconds,severity,enabled&enabled=eq.true&order=name.asc',
+        'alert_rules?select=id,name,device_id,metric,minimum_value,maximum_value,duration_seconds,severity,enabled,max_sample_gap_seconds&order=name.asc',
         { method: 'GET' },
       ),
-      this.request(
-        'alerts?select=id,rule_id,device_id,status,message,trigger_value,triggered_at,acknowledged_at,resolved_at&order=triggered_at.desc&limit=50',
-        { method: 'GET' },
-      ),
+      this.request(`alerts?${historyQuery.toString()}`, { method: 'GET' }),
+      this.getOpenAlerts(openQuery),
     ]);
 
     const [readings, alertRules, alerts] = await Promise.all([
@@ -199,8 +204,28 @@ export class SupabaseMonitoringStore implements MonitoringStore {
       devices,
       readings,
       alertRules,
-      alerts,
+      alerts: [
+        ...new Map([...alerts, ...openAlerts].map((alert) => [alert.id, alert])).values(),
+      ].sort(
+        (left, right) =>
+          Number(right.status !== 'resolved') - Number(left.status !== 'resolved') ||
+          Date.parse(right.triggered_at) - Date.parse(left.triggered_at),
+      ),
     };
+  }
+
+  private async getOpenAlerts(query: URLSearchParams): Promise<DashboardAlertRecord[]> {
+    const alerts: DashboardAlertRecord[] = [];
+    let afterId: string | undefined;
+    // Keyset pagination also handles server caps smaller than the requested page.
+    for (;;) {
+      if (afterId) query.set('id', `gt.${afterId}`);
+      const response = await this.request(`alerts?${query.toString()}`, { method: 'GET' });
+      const page = (await response.json()) as DashboardAlertRecord[];
+      if (!page.length) return alerts;
+      alerts.push(...page);
+      afterId = page[page.length - 1]!.id;
+    }
   }
 
   private async request(path: string, init: RequestInit): Promise<Response> {

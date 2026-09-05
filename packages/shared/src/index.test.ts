@@ -112,4 +112,51 @@ describe('reading ingestion contract', () => {
       ).errors,
     ).toContain('readings[0].recordedAt is too far in the future');
   });
+
+  it('preserves explicit fault samples alongside a valid detector alarm', () => {
+    const result = validateReadingIngestionRequest(
+      {
+        deviceCode: 'male_ward',
+        readings: [
+          {
+            metric: 'humidity',
+            value: 118,
+            unit: 'percent_rh',
+            quality: 'invalid',
+            recordedAt: now.toISOString(),
+          },
+          {
+            metric: 'detector_alarm',
+            value: 1,
+            unit: 'alarm_state',
+            recordedAt: now.toISOString(),
+          },
+        ],
+      },
+      now,
+    );
+    expect(result.ok).toBe(true);
+    expect(result.value?.readings).toHaveLength(2);
+    expect(result.value?.readings[0]).toMatchObject({ value: 118, quality: 'invalid' });
+  });
+
+  it('rejects envelope errors even when an individual reading is valid', () => {
+    const result = validateReadingIngestionRequest(
+      {
+        contractVersion: 99,
+        deviceCode: 'male_ward',
+        readings: [
+          {
+            metric: 'detector_alarm',
+            value: 1,
+            unit: 'alarm_state',
+            recordedAt: now.toISOString(),
+          },
+        ],
+      },
+      now,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.value).toBeUndefined();
+  });
 });

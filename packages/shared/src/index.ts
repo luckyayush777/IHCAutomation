@@ -42,12 +42,19 @@ export interface ReadingIngestionResponse {
   accepted: number;
   deviceCode: string;
   receivedAt: string;
+  rejected?: RejectedReading[];
+}
+
+export interface RejectedReading {
+  index: number;
+  errors: string[];
 }
 
 export interface ValidationResult<T> {
   ok: boolean;
   value?: T;
   errors: string[];
+  rejected?: RejectedReading[];
 }
 
 export const DEVICE_CODES: readonly DeviceCode[] = [
@@ -106,17 +113,25 @@ export function validateReadingIngestionRequest(
 
   const readings = Array.isArray(value.readings) ? value.readings : [];
   const validatedReadings: SensorReadingInput[] = [];
+  const rejected: RejectedReading[] = [];
+
+  // Envelope errors reject the request; individual sensor errors do not discard siblings.
+  if (errors.length > 0) return { ok: false, errors };
 
   readings.forEach((reading, index) => {
+    const errors: string[] = [];
+    const reject = () => rejected.push({ index, errors });
     const prefix = `readings[${index}]`;
 
     if (!isRecord(reading)) {
       errors.push(`${prefix} must be an object`);
+      reject();
       return;
     }
 
     if (!isOneOf(reading.metric, ['temperature', 'humidity', 'smoke', 'detector_alarm'])) {
       errors.push(`${prefix}.metric is invalid`);
+      reject();
       return;
     }
 
@@ -124,6 +139,7 @@ export function validateReadingIngestionRequest(
 
     if (!isOneOf(reading.unit, ['celsius', 'percent_rh', 'ppm', 'alarm_state'])) {
       errors.push(`${prefix}.unit is invalid`);
+      reject();
       return;
     }
 
@@ -133,6 +149,10 @@ export function validateReadingIngestionRequest(
 
     if (typeof reading.value !== 'number' || !Number.isFinite(reading.value)) {
       errors.push(`${prefix}.value must be a finite number`);
+    } else if (Math.abs(reading.value) > 9999999.999) {
+      errors.push(`${prefix}.value exceeds storage precision`);
+    } else if (reading.quality === 'invalid') {
+      // Preserve the fault sample so it breaks alert continuity and is visible as unavailable.
     } else if (metric === 'temperature' && (reading.value < -50 || reading.value > 80)) {
       errors.push(`${prefix}.value is outside the supported temperature range`);
     } else if (metric === 'humidity' && (reading.value < 0 || reading.value > 100)) {
@@ -165,6 +185,10 @@ export function validateReadingIngestionRequest(
       }
     }
 
+    if (errors.length > 0) {
+      reject();
+      return;
+    }
     validatedReadings.push({
       metric,
       value: reading.value as number,
@@ -174,13 +198,14 @@ export function validateReadingIngestionRequest(
     });
   });
 
-  if (errors.length > 0) {
-    return { ok: false, errors };
+  if (validatedReadings.length === 0) {
+    return { ok: false, errors: rejected.flatMap((item) => item.errors), rejected };
   }
 
   return {
     ok: true,
     errors: [],
+    rejected,
     value: {
       contractVersion: INGESTION_CONTRACT_VERSION,
       deviceCode: value.deviceCode as string,

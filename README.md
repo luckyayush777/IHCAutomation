@@ -112,6 +112,13 @@ Example payload:
 The intended API uses the ORM server-side to store valid readings and update device heartbeat state.
 The simulator uses `SIMULATOR_DEVICE_KEY`; it never needs database credentials.
 
+Ingestion validates each sensor reading independently. A `202` response reports the number of
+accepted readings and includes `rejected: [{ index, errors }]` when individual readings were
+rejected. Invalid request envelopes and batches with no acceptable readings still return `400`.
+Explicitly marked `quality: "invalid"` samples may contain finite fault values outside the physical
+sensor range; they are stored as fault evidence and never evaluated as measurements. A faulty
+humidity sensor therefore cannot discard a valid detector alarm in the same upload.
+
 Simulator scenarios are controlled with:
 
 ```dotenv
@@ -142,6 +149,21 @@ API also checks heartbeats every 30 seconds and marks a device offline after fiv
 reading. Detector-alarm rules use the approved alarm-state signal rather than an arbitrary smoke
 PPM threshold.
 
+The Supabase implementation stores and evaluates a batch in one transaction, serialized per device.
+It processes new samples in timestamp order, including every transition within a batch, and keeps
+an evaluation cursor so retries do not replay resolved episodes. Only `good` samples establish
+continuity. Invalid/suspect samples or gaps of five minutes or more reset pending violation and
+recovery timers; an existing alert stays open until continuous valid recovery is observed. The gap
+limit is configurable per rule through `max_sample_gap_seconds` (default `300`).
+When previously unseen readings arrive behind the cursor, affected rules are rebuilt from retained
+history in the same transaction. This corrects false excursions and interrupted recoveries caused
+by out-of-order delivery, while preserving IDs and acknowledgements for unchanged episodes.
+
+Apply `supabase/migrations/20260905120000_fix_alert_continuity.sql` before starting the updated API.
+The migration preserves existing alerts and resets unverified pending timers. The regression suite
+executes the alert SQL in an isolated PGlite PostgreSQL instance; it needs neither Docker nor access
+to the hosted database.
+
 ## Dashboard data
 
 The browser reads from the API only:
@@ -153,6 +175,11 @@ GET /api/v1/dashboard
 The endpoint returns devices, recent readings, enabled alert rules, and recent alerts as one compact
 snapshot. The public dashboard contains no write, acknowledgement, configuration, patient, or login
 controls.
+
+The live safety display is independent of historical chart ranges. Missing, invalid, suspect, or
+stale sensor data is shown as unavailable, including when viewing a cached snapshot. Every open
+alert (active or acknowledged) is loaded separately from the latest 50 resolved events, so newer
+history cannot hide an unresolved alert.
 
 ## Raspberry Pi deployment
 

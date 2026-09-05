@@ -133,13 +133,13 @@ export function createApp(options: AppOptions = {}) {
 
       const receivedAt = now().toISOString();
       await monitoringStore.storeReadings(device.id, validation.value, receivedAt);
-      await monitoringStore.evaluateDeviceAlerts(device.id, receivedAt);
 
       const payload: ReadingIngestionResponse = {
         contractVersion: INGESTION_CONTRACT_VERSION,
         accepted: validation.value.readings.length,
         deviceCode: validation.value.deviceCode,
         receivedAt,
+        ...(validation.rejected?.length ? { rejected: validation.rejected } : {}),
       };
 
       response.status(202).json(payload);

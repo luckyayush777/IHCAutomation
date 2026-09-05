@@ -153,9 +153,8 @@ describe('reading ingestion endpoint', () => {
         receivedAt: '2026-08-16T09:30:00.000Z',
       },
     ]);
-    expect(store.evaluatedDevices).toEqual([
-      { deviceId: 'device-1', evaluatedAt: '2026-08-16T09:30:00.000Z' },
-    ]);
+    // Ingestion RPC stores and evaluates atomically, with no second API-side evaluation.
+    expect(store.evaluatedDevices).toEqual([]);
   });
 
   it('rejects missing or invalid device tokens', async () => {
@@ -223,6 +222,30 @@ describe('reading ingestion endpoint', () => {
     expect(store.stored).toHaveLength(1);
   });
 
+  it('accepts a valid alarm despite a malformed sibling and reports its rejection', async () => {
+    const store = new FakeMonitoringStore();
+    const response = await request(
+      createApp({ deviceToken: 'test-device-token', monitoringStore: store, now }),
+    )
+      .post('/api/v1/readings')
+      .set('Authorization', 'Bearer test-device-token')
+      .send({
+        deviceCode: 'fridge_male_ward',
+        readings: [
+          { metric: 'humidity', value: 118, unit: 'percent_rh', recordedAt: now().toISOString() },
+          {
+            metric: 'detector_alarm',
+            value: 1,
+            unit: 'alarm_state',
+            recordedAt: now().toISOString(),
+          },
+        ],
+      });
+    expect(response.status).toBe(202);
+    expect(response.body).toMatchObject({ accepted: 1, rejected: [{ index: 0 }] });
+    expect(store.stored[0]?.readingCount).toBe(1);
+  });
+
   it('rejects unknown devices', async () => {
     const response = await request(
       createApp({
@@ -253,7 +276,7 @@ describe('reading ingestion endpoint', () => {
 });
 
 describe('Supabase monitoring storage', () => {
-  it('stores readings with an idempotent conflict policy', async () => {
+  it('sends the batch to the atomic ingestion and evaluation RPC', async () => {
     const calls: Array<{ path: string; init: RequestInit }> = [];
     const fetcher = async (url: string | URL | Request, init?: RequestInit) => {
       calls.push({ path: String(url), init: init ?? {} });
@@ -281,9 +304,12 @@ describe('Supabase monitoring storage', () => {
       '2026-08-16T09:30:00.000Z',
     );
 
-    expect(calls[0]?.path).toContain('readings?on_conflict=device_id,metric,recorded_at');
-    expect(calls[0]?.init.headers).toMatchObject({
-      prefer: 'resolution=ignore-duplicates,return=minimal',
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.path).toContain('rpc/ingest_device_readings');
+    expect(JSON.parse(calls[0]?.init.body as string)).toMatchObject({
+      p_device_id: 'device-1',
+      p_readings: [{ value: 4.2 }],
+      p_received_at: '2026-08-16T09:30:00.000Z',
     });
   });
 
@@ -313,7 +339,48 @@ describe('Supabase monitoring storage', () => {
     expect(calls[1]).toContain('device_id=in.%28device-1%29');
     expect(calls[1]).toContain('recorded_at=gte.2026-08-16T09%3A00%3A00.000Z');
     expect(calls[1]).toContain('recorded_at=lte.2026-08-16T10%3A00%3A00.000Z');
-    expect(calls).toHaveLength(4);
+    expect(calls).toHaveLength(5);
+  });
+
+  it('keeps every open alert even with 50 newer resolved alerts and server page caps', async () => {
+    const open = ['a', 'b', 'c'].map((id, index) => ({
+      id,
+      device_id: 'device-1',
+      status: index === 2 ? 'acknowledged' : 'active',
+      triggered_at: '2026-08-15T10:00:00.000Z',
+    }));
+    const history = Array.from({ length: 50 }, (_, index) => ({
+      id: `history-${index}`,
+      device_id: 'device-1',
+      status: 'resolved',
+      triggered_at: '2026-08-16T10:00:00.000Z',
+    }));
+    const fetcher = async (url: string | URL | Request) => {
+      const parsed = new URL(String(url));
+      let body: unknown[] = [];
+      if (parsed.pathname.endsWith('/devices'))
+        body = [{ id: 'device-1', device_code: 'fridge_male_ward' }];
+      if (parsed.pathname.endsWith('/alerts')) {
+        expect(parsed.searchParams.get('device_id')).toBe('in.(device-1)');
+        body =
+          parsed.searchParams.get('status') === 'eq.resolved'
+            ? history
+            : open
+                .filter((alert) => alert.id > (parsed.searchParams.get('id')?.slice(3) ?? ''))
+                .slice(0, 2);
+      }
+      return new Response(JSON.stringify(body));
+    };
+    const store = new SupabaseMonitoringStore(
+      'https://example.supabase.co',
+      'test-secret',
+      fetcher,
+    );
+    const snapshot = await store.getDashboardSnapshot('2026-08-16T10:00:00.000Z', {
+      deviceCode: 'fridge_male_ward',
+    });
+    expect(snapshot.alerts).toHaveLength(53);
+    expect(snapshot.alerts.slice(0, 3).map((alert) => alert.id)).toEqual(['a', 'b', 'c']);
   });
 
   it('evaluates reading and heartbeat rules through server-only RPCs', async () => {

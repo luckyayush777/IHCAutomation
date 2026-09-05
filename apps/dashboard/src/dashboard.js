@@ -67,7 +67,8 @@ function rangeQuery() {
   return params;
 }
 async function fetchSnapshot(deviceCode) {
-  const params = rangeQuery();
+  // History controls must never change the live overview or its cached copy.
+  const params = deviceCode ? rangeQuery() : new URLSearchParams();
   if (deviceCode) params.set('deviceCode', deviceCode);
   const response = await fetch(`${dashboardEndpoint}?${params}`, {
     signal: AbortSignal.timeout(5000),
@@ -115,7 +116,7 @@ function renderLocationSelector(devices) {
 }
 
 function renderSafetyWheel(snapshot) {
-  const model = buildSafetyWheelModel(snapshot, selectedWheelDeviceCode);
+  const model = buildSafetyWheelModel(snapshot, selectedWheelDeviceCode, new Date().toISOString());
   const statusLabels = {
     safe: 'SAFE',
     caution: 'CAUTION',
@@ -165,7 +166,7 @@ function renderSafetyWheel(snapshot) {
 
 function renderOverview(snapshot, isCached = false) {
   latestSnapshot = snapshot;
-  overviewModel = buildDashboardModel(snapshot);
+  overviewModel = buildDashboardModel(snapshot, new Date().toISOString());
   selectedDeviceCode ??= overviewModel.devices[0]?.device_code;
   if (
     selectedWheelDeviceCode &&
@@ -291,7 +292,8 @@ function renderDetail(snapshot) {
   const period = selectedRange.hours
     ? `Last ${selectedRange.hours === 168 ? '7 days' : `${selectedRange.hours} hour${selectedRange.hours === 1 ? '' : 's'}`}`
     : 'Custom period';
-  elements.detailSummary.innerHTML = `<div><dt>Period</dt><dd>${period}</dd></div><div><dt>Current</dt><dd>${escapeHtml(device.primaryReading)}</dd></div><div><dt>Temperature min / avg / max</dt><dd>${readingStats(snapshot.readings, 'temperature')} C</dd></div><div><dt>${device.device_type === 'fridge_probe' ? 'Accepted range' : 'Humidity min / avg / max'}</dt><dd>${device.device_type === 'fridge_probe' ? '2.0 to 5.0 C' : `${readingStats(snapshot.readings, 'humidity')} % RH`}</dd></div>`;
+  const currentDevice = overviewModel?.devices.find((item) => item.id === device.id);
+  elements.detailSummary.innerHTML = `<div><dt>Period</dt><dd>${period}</dd></div><div><dt>Current</dt><dd>${escapeHtml(currentDevice?.primaryReading ?? '--')}</dd></div><div><dt>Temperature min / avg / max</dt><dd>${readingStats(snapshot.readings, 'temperature')} C</dd></div><div><dt>${device.device_type === 'fridge_probe' ? 'Accepted range' : 'Humidity min / avg / max'}</dt><dd>${device.device_type === 'fridge_probe' ? '2.0 to 5.0 C' : `${readingStats(snapshot.readings, 'humidity')} % RH`}</dd></div>`;
   renderChart(snapshot.readings);
   renderAlerts(snapshot.alerts.filter((alert) => alert.device_id === device.id));
 }

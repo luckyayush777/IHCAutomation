@@ -49,7 +49,10 @@ function latestReadingsByDevice(readings) {
   for (const reading of readings) {
     const deviceMetrics = latestByDevice.get(reading.device_id) ?? {};
 
-    if (!deviceMetrics[reading.metric]) {
+    if (
+      !deviceMetrics[reading.metric] ||
+      Date.parse(reading.recorded_at) > Date.parse(deviceMetrics[reading.metric].recorded_at)
+    ) {
       deviceMetrics[reading.metric] = reading;
     }
 
@@ -59,8 +62,23 @@ function latestReadingsByDevice(readings) {
   return latestByDevice;
 }
 
-function thresholdStatus(reading, rule) {
-  if (!reading) return { risk: 0.12, status: 'unknown', statusLabel: 'No reading' };
+function readingProblem(reading, evaluatedAt, maxAgeSeconds = 300) {
+  if (!reading) return 'No reading';
+  if (
+    reading.quality !== 'good' ||
+    reading.value == null ||
+    !Number.isFinite(Number(reading.value))
+  )
+    return 'Sensor fault';
+  const age = Date.parse(evaluatedAt) - Date.parse(reading.recorded_at);
+  if (!Number.isFinite(age) || age < 0) return 'Invalid timestamp';
+  if (age >= maxAgeSeconds * 1000) return 'Reading stale';
+  return null;
+}
+
+function thresholdStatus(reading, rule, evaluatedAt) {
+  const problem = readingProblem(reading, evaluatedAt, rule?.max_sample_gap_seconds);
+  if (problem) return { risk: 0.65, status: 'unknown', statusLabel: problem, unavailable: true };
   if (!rule) return { risk: 0.18, status: 'unknown', statusLabel: 'No limit set' };
 
   const value = Number(reading.value);
@@ -122,7 +140,7 @@ function ruleFor(snapshot, device, metric) {
 
 function metricModel(snapshot, device, metric, label, latest, activeRuleIds) {
   const rule = ruleFor(snapshot, device, metric);
-  const result = thresholdStatus(latest[metric], rule);
+  const result = thresholdStatus(latest[metric], rule, snapshot.generatedAt);
   const activeForMetric = snapshot.alertRules.some(
     (candidate) =>
       candidate.device_id === device.id &&
@@ -133,7 +151,7 @@ function metricModel(snapshot, device, metric, label, latest, activeRuleIds) {
   return {
     id: metric,
     label,
-    reading: formatReading(latest[metric]),
+    reading: result.unavailable ? '--' : formatReading(latest[metric]),
     source: device.name,
     ...result,
     ...(activeForMetric ? { risk: 0.95, status: 'danger', statusLabel: 'Alert active' } : {}),
@@ -142,63 +160,84 @@ function metricModel(snapshot, device, metric, label, latest, activeRuleIds) {
 
 function metricsForDevice(snapshot, device, latestByDevice, activeRuleIds) {
   const latest = latestByDevice.get(device.id) ?? {};
-  const smokeAlarm = Number(latest.detector_alarm?.value) === 1;
+  const detectorRule = ruleFor(snapshot, device, 'detector_alarm');
+  const detectorProblem = readingProblem(
+    latest.detector_alarm,
+    snapshot.generatedAt,
+    detectorRule?.max_sample_gap_seconds,
+  );
+  const smokeAlarm = !detectorProblem && Number(latest.detector_alarm?.value) === 1;
   const detectorRuleActive = snapshot.alertRules.some(
     (rule) =>
       rule.device_id === device.id &&
       rule.metric === 'detector_alarm' &&
       activeRuleIds.has(rule.id),
   );
-  const hasDetectorReading = latest.detector_alarm != null;
-  const smokeReading = latest.smoke
+  const hasDetectorReading = !detectorProblem;
+  const smokeReading = !readingProblem(latest.smoke, snapshot.generatedAt)
     ? formatReading(latest.smoke)
     : hasDetectorReading
       ? 'Clear'
       : '--';
   const offline = isOffline(device, snapshot.generatedAt);
+  const connectionAlert = snapshot.alertRules.some(
+    (rule) =>
+      rule.device_id === device.id && rule.metric === 'heartbeat' && activeRuleIds.has(rule.id),
+  );
 
   return [
     metricModel(snapshot, device, 'temperature', 'Temperature', latest, activeRuleIds),
-    metricModel(snapshot, device, 'humidity', 'Humidity', latest, activeRuleIds),
-    {
-      id: 'smoke',
-      label: 'Smoke',
-      reading: smokeAlarm ? 'Alarm' : smokeReading,
-      source: device.name,
-      risk: smokeAlarm || detectorRuleActive ? 0.98 : hasDetectorReading ? 0.25 : 0.12,
-      status: smokeAlarm || detectorRuleActive ? 'danger' : hasDetectorReading ? 'safe' : 'unknown',
-      statusLabel:
-        smokeAlarm || detectorRuleActive
-          ? 'Smoke alarm'
-          : hasDetectorReading
-            ? 'Clear'
-            : 'No reading',
-    },
+    ...(device.device_type === 'room_monitor' || ruleFor(snapshot, device, 'humidity')
+      ? [metricModel(snapshot, device, 'humidity', 'Humidity', latest, activeRuleIds)]
+      : []),
+    ...(device.device_type === 'room_monitor' || latest.detector_alarm || detectorRule
+      ? [
+          {
+            id: 'smoke',
+            label: 'Smoke',
+            reading: smokeAlarm ? 'Alarm' : smokeReading,
+            source: device.name,
+            unavailable: Boolean(detectorProblem),
+            risk: smokeAlarm || detectorRuleActive ? 0.98 : hasDetectorReading ? 0.25 : 0.12,
+            status:
+              smokeAlarm || detectorRuleActive ? 'danger' : hasDetectorReading ? 'safe' : 'unknown',
+            statusLabel:
+              smokeAlarm || detectorRuleActive
+                ? 'Smoke alarm'
+                : hasDetectorReading
+                  ? 'Clear'
+                  : detectorProblem,
+          },
+        ]
+      : []),
     {
       id: 'connection',
       label: 'Connection',
       reading: offline ? 'Offline' : 'Online',
       source: device.name,
-      risk: offline ? 0.9 : 0.22,
-      status: offline ? 'danger' : 'safe',
-      statusLabel: offline ? 'Check device' : 'Connected',
+      risk: offline || connectionAlert ? 0.9 : 0.22,
+      status: offline || connectionAlert ? 'danger' : 'safe',
+      statusLabel: connectionAlert ? 'Alert active' : offline ? 'Check device' : 'Connected',
     },
   ];
 }
 
-const statusPriority = { unknown: 0, safe: 1, caution: 2, danger: 3 };
+const statusPriority = { safe: 1, caution: 2, unknown: 3, danger: 4 };
 
-export function buildSafetyWheelModel(snapshot, deviceCode) {
-  const dashboard = buildDashboardModel(snapshot);
+export function buildSafetyWheelModel(snapshot, deviceCode, evaluatedAt = snapshot.generatedAt) {
+  const dashboard = buildDashboardModel(snapshot, evaluatedAt);
   const selectedDevices = deviceCode
     ? dashboard.devices.filter((device) => device.device_code === deviceCode)
     : dashboard.devices;
-  const activeRuleIds = new Set(
-    snapshot.alerts.filter((alert) => alert.status === 'active').map((alert) => alert.rule_id),
-  );
+  const activeRuleIds = new Set(snapshot.alerts.filter(isOpenAlert).map((alert) => alert.rule_id));
   const latestByDevice = latestReadingsByDevice(snapshot.readings);
   const deviceMetrics = selectedDevices.map((device) =>
-    metricsForDevice(snapshot, device, latestByDevice, activeRuleIds),
+    metricsForDevice(
+      { ...snapshot, generatedAt: evaluatedAt },
+      device,
+      latestByDevice,
+      activeRuleIds,
+    ),
   );
   const metricIds = ['temperature', 'humidity', 'smoke', 'connection'];
   const metrics = metricIds.map((metricId) => {
@@ -207,14 +246,17 @@ export function buildSafetyWheelModel(snapshot, deviceCode) {
       .filter(Boolean)
       .sort(
         (left, right) =>
-          statusPriority[right.status] - statusPriority[left.status] || right.risk - left.risk,
+          (right.status === 'unknown' && !right.unavailable ? 0 : statusPriority[right.status]) -
+            (left.status === 'unknown' && !left.unavailable ? 0 : statusPriority[left.status]) ||
+          right.risk - left.risk,
       )[0];
   });
   const knownMetrics = metrics.filter(Boolean);
   const dangerMetric = knownMetrics.find((metric) => metric.status === 'danger');
   const cautionMetric = knownMetrics.find((metric) => metric.status === 'caution');
+  const unavailableMetric = knownMetrics.find((metric) => metric.unavailable);
   const selectedDevice = selectedDevices[0];
-  const title = selectedDevice?.name ?? 'Whole facility';
+  const title = deviceCode ? (selectedDevice?.name ?? 'Unknown device') : 'Whole facility';
 
   let status = 'safe';
   let headline = 'All monitored conditions look normal';
@@ -230,6 +272,10 @@ export function buildSafetyWheelModel(snapshot, deviceCode) {
     status = 'danger';
     headline = dangerMetric.id === 'smoke' ? 'Smoke alarm — act immediately' : 'Attention needed';
     message = `${dangerMetric.label}: ${dangerMetric.statusLabel} at ${dangerMetric.source}.`;
+  } else if (unavailableMetric) {
+    status = 'unknown';
+    headline = 'Sensor data unavailable';
+    message = `${unavailableMetric.label}: ${unavailableMetric.statusLabel} at ${unavailableMetric.source}.`;
   } else if (cautionMetric) {
     status = 'caution';
     headline = 'A reading is close to its limit';
@@ -241,6 +287,7 @@ export function buildSafetyWheelModel(snapshot, deviceCode) {
 
 export function formatReading(reading) {
   if (!reading) return '--';
+  if (reading.quality && reading.quality !== 'good') return 'Sensor fault';
 
   if (reading.metric === 'detector_alarm') {
     return Number(reading.value) === 1 ? 'Alarm' : 'Clear';
@@ -249,21 +296,37 @@ export function formatReading(reading) {
   return `${Number(reading.value).toFixed(reading.metric === 'smoke' ? 0 : 1)} ${metricUnits[reading.metric]}`;
 }
 
-export function buildDashboardModel(snapshot) {
+function isOpenAlert(alert) {
+  return alert.status === 'active' || alert.status === 'acknowledged';
+}
+
+export function buildDashboardModel(snapshot, evaluatedAt = snapshot.generatedAt) {
   const latestByDevice = latestReadingsByDevice(snapshot.readings);
 
-  const activeAlerts = snapshot.alerts.filter((alert) => alert.status === 'active');
+  const activeAlerts = snapshot.alerts.filter(isOpenAlert);
   const activeAlertDeviceIds = new Set(activeAlerts.map((alert) => alert.device_id));
 
   const devices = [...snapshot.devices].sort(byDeviceOrder).map((device) => {
     const latest = latestByDevice.get(device.id) ?? {};
-    const offline = isOffline(device, snapshot.generatedAt);
+    const offline = isOffline(device, evaluatedAt);
     const fridgeTemperature = latest.temperature?.value;
     const fridgeOutOfRange =
       device.device_type === 'fridge_probe' &&
+      !readingProblem(latest.temperature, evaluatedAt) &&
       typeof fridgeTemperature === 'number' &&
       (fridgeTemperature < FRIDGE_MIN_C || fridgeTemperature > FRIDGE_MAX_C);
     const hasAlert = activeAlertDeviceIds.has(device.id);
+    const requiredMetrics =
+      device.device_type === 'fridge_probe'
+        ? ['temperature']
+        : ['temperature', 'humidity', 'detector_alarm'];
+    const unavailable = requiredMetrics.some((metric) =>
+      readingProblem(
+        latest[metric],
+        evaluatedAt,
+        ruleFor(snapshot, device, metric)?.max_sample_gap_seconds,
+      ),
+    );
 
     let statusKind = 'online';
     let statusLabel = 'Normal';
@@ -274,16 +337,18 @@ export function buildDashboardModel(snapshot) {
     } else if (hasAlert || fridgeOutOfRange) {
       statusKind = 'alert';
       statusLabel = 'Attention';
+    } else if (unavailable) {
+      statusKind = 'alert';
+      statusLabel = 'Sensor data unavailable';
     }
 
     return {
       ...device,
       latest,
       lastSeenLabel: formatTime(device.last_seen_at),
-      primaryReading:
-        device.device_type === 'fridge_probe'
-          ? formatReading(latest.temperature)
-          : formatReading(latest.temperature),
+      primaryReading: readingProblem(latest.temperature, evaluatedAt)
+        ? '--'
+        : formatReading(latest.temperature),
       secondaryReading:
         device.device_type === 'fridge_probe'
           ? 'Allowed 2.0 to 5.0 C'
