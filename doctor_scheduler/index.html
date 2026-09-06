@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#123e69" />
+    <title>Doctor schedules · Institute Health Centre</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%23123e69'/%3E%3Cpath d='M17 9h6v8h8v6h-8v8h-6v-8H9v-6h8z' fill='white'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script type="module" src="app.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to schedule</a>
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand" href="./" aria-label="Institute Health Centre home">
+          <span class="brand-mark" aria-hidden="true">+</span>
+          <span
+            ><strong>Institute Health Centre</strong
+            ><span class="brand-subtitle">Care today. Healthier tomorrows.</span></span
+          >
+        </a>
+        <div class="header-right">
+          <span class="header-label">DOCTOR & STAFF DIRECTORY</span
+          ><span class="header-location">Your care, at a glance</span>
+        </div>
+      </div>
+    </header>
+
+    <main id="main" class="page">
+      <div class="page-heading">
+        <div>
+          <div class="eyebrow">HEALTH CENTRE / SCHEDULES</div>
+          <h1>Know who’s here.</h1>
+          <p>Find a doctor, their room, and the right time to visit.</p>
+        </div>
+        <div class="date-block">
+          <strong id="current-date">Loading date…</strong
+          ><span
+            ><span class="live-dot"></span><span id="current-time">—</span>
+            <span class="timezone">IST</span></span
+          >
+        </div>
+      </div>
+
+      <div class="prototype-note">
+        <span class="prototype-tag">PROTOTYPE</span>
+        <p>
+          Doctor codes & shifts follow the supplied timetable. Specialties, rooms, and all staff
+          details are illustrative; photos are placeholders.
+        </p>
+      </div>
+
+      <div id="load-error" class="load-error" role="alert" hidden>
+        <strong>The schedule couldn’t be loaded.</strong>
+        <p>Run the Python server and reload this page.</p>
+        <button id="retry" type="button">Try again</button>
+      </div>
+      <div id="loading" class="loading" role="status">Loading the weekly schedule…</div>
+
+      <div id="schedule-content" hidden>
+        <nav class="mobile-jumps" aria-label="Schedule sections">
+          <a href="#weekly-title">This week</a>
+          <a href="#doctors-title">Doctors now <span aria-hidden="true">↓</span></a>
+          <a href="#staff-title">Staff now <span aria-hidden="true">↓</span></a>
+        </nav>
+        <section class="panel weekly-panel" aria-labelledby="weekly-title">
+          <div class="section-heading weekly-heading">
+            <div>
+              <div class="section-kicker">PLAN YOUR VISIT</div>
+              <h2 id="weekly-title">Weekly schedule</h2>
+            </div>
+            <div class="week-label" id="week-label"></div>
+          </div>
+          <div class="schedule-toolbar">
+            <span><span class="legend-dot"></span>Scheduled at the displayed time</span
+            ><span
+              >Weekly recurring timetable <span class="toolbar-separator">·</span> All times
+              IST</span
+            >
+          </div>
+          <div id="week-grid" class="week-grid"></div>
+          <div class="schedule-footnote">
+            <span>Only listed hours are scheduled. Gaps indicate no listed availability.</span
+            ><span>00:00 = midnight · 24:00 = end of day</span>
+          </div>
+        </section>
+
+        <div class="now-heading">
+          <div>
+            <div class="section-kicker">AT THE HEALTH CENTRE</div>
+            <h2>Available now <span id="now-label"></span></h2>
+          </div>
+          <span class="schedule-status"><span class="live-dot"></span>Based on the timetable</span>
+        </div>
+
+        <div class="current-grid">
+          <section class="panel doctors-panel" aria-labelledby="doctors-title">
+            <div class="section-heading">
+              <h3 id="doctors-title">Doctors <span class="count" id="doctor-count">0</span></h3>
+              <span class="section-meta">Room & specialty</span>
+            </div>
+            <div id="doctors" class="doctor-list"></div>
+            <div class="panel-note">
+              Availability follows scheduled hours. Changes must be updated in the source.
+            </div>
+          </section>
+          <section class="panel staff-panel" aria-labelledby="staff-title">
+            <div class="section-heading">
+              <h3 id="staff-title">Staff <span class="count" id="staff-count">0</span></h3>
+              <span class="sample-label">Sample data</span>
+            </div>
+            <div id="staff" class="staff-list"></div>
+          </section>
+        </div>
+
+        <details class="preview-tools">
+          <summary>Prototype controls <span>Preview a different day and time</span></summary>
+          <div class="preview-form">
+            <label
+              >Day<select id="preview-day">
+                <option value="Mon">Monday</option>
+                <option value="Tue">Tuesday</option>
+                <option value="Wed">Wednesday</option>
+                <option value="Thu">Thursday</option>
+                <option value="Fri">Friday</option>
+                <option value="Sat">Saturday</option>
+                <option value="Sun">Sunday</option>
+              </select></label
+            ><label>Time (IST)<input id="preview-time" type="time" value="18:30" required /></label
+            ><button id="apply-preview" type="button">Preview time</button
+            ><button id="reset-preview" class="secondary-button" type="button">
+              Use current time</button
+            ><span id="preview-status" role="status">Showing the current time.</span>
+          </div>
+        </details>
+      </div>
+      <noscript><p class="load-error">Please enable JavaScript to view the schedule.</p></noscript>
+      <footer>
+        <span><strong>IHC</strong> Institute Health Centre</span
+        ><span id="source-note">Source: supplied weekly timetable</span>
+      </footer>
+    </main>
+  </body>
+</html>
