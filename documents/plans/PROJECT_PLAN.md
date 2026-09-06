@@ -80,17 +80,23 @@ Medicine temperature limits must remain configurable and be based on manufacture
 ## 5. Proposed Architecture
 
 ```text
-ESP32 sensor nodes -- LAN + device credential --> Raspberry Pi 3
-                                                   |  API + kiosk UI
-                                                   |  doctor roster display
-                                                   v
-                                      Prisma ORM + local SQLite database
-                                                   |
-                                                   v
-                                           Alert/notification services
+Direct Pi sensors --> driver registry + polling collector --+
+                                                            |
+ESP32 nodes ---------- LAN + device credential -------------+--> Ingestion API
+                                                                    |  validation + alerts
+                                                                    v
+                                                       Prisma ORM + local SQLite
+                                                                    |
+                                                                    v
+                                                        Dashboard + notifications
 ```
 
-Sensors must not connect directly to the database. They send readings to an ingestion API, which validates and stores the data. This avoids placing database credentials in device firmware and provides one stable interface for both simulated and physical devices.
+Every directly connected sensor uses the same small `initialize/read` driver contract and is added
+to one registry. The collector and remote ESP32 nodes use the same ingestion operation. Sensors must
+not connect directly to the database. This avoids placing database credentials in drivers or device
+firmware and provides one stable interface for simulated, direct, and remote physical devices. See
+the [extensible sensor architecture](../guides/EXTENSIBLE_SENSOR_ARCHITECTURE.md) for the complete
+pseudocode and extension steps.
 
 ## 6. Technology Choices
 

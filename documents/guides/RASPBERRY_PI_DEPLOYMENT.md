@@ -5,8 +5,9 @@
 The Raspberry Pi is the health-centre's dedicated information computer and local application host.
 It serves the built dashboard and API, drives the reception monitor, receives readings from ESP32
 nodes over the local network, and stores approved monitoring data in its local SQLite database
-through the ORM. It does not replace the ESP32
-installed at each refrigerator or room.
+through the ORM. The initial field design uses ESP32 nodes at each refrigerator or room. A sensor
+connected directly to the Pi can instead use the common driver registry and polling collector; both
+paths use the same validated ingestion operation.
 
 The public console contains sensor and operational status only. Do not store patient names,
 appointments, diagnoses, phone numbers, or other clinical information in this application.

@@ -185,8 +185,9 @@ history cannot hide an unresolved alert.
 
 The production build is designed to run as an always-on Raspberry Pi information console. The API
 serves the compiled dashboard on port 4000, and Chromium opens it in kiosk mode after login. ESP32
-nodes remain distributed at each refrigerator and room and send readings to the Pi over the local
-network.
+nodes can remain distributed at each refrigerator and room and send readings to the Pi over the
+local network. Sensors connected directly to the Pi use the small driver registry described in the
+extensible sensor architecture; both paths share the same validated ingestion pipeline.
 
 See [Raspberry Pi deployment](documents/guides/RASPBERRY_PI_DEPLOYMENT.md) for hardware, systemd, kiosk,
 security, reliability, and update instructions.

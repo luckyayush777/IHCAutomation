@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="850" viewBox="0 0 1400 850" role="img" aria-labelledby="title description">
+  <title id="title">IHC simple extensible sensor architecture</title>
+  <desc id="description">Local Raspberry Pi sensors use small drivers registered with one collector. Remote ESP32 nodes and the collector both feed one ingestion API, which validates and stores readings, evaluates alerts, and supplies the dashboard.</desc>
+  <defs>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #14263a; }
+      .title { font-size: 30px; font-weight: 700; }
+      .subtitle { font-size: 16px; fill: #526579; }
+      .zone { fill: #f5f8fc; stroke: #bdccdc; stroke-width: 2; }
+      .input { fill: #eaf5ff; stroke: #4588bd; stroke-width: 2; }
+      .extension { fill: #fff8e8; stroke: #d59a35; stroke-width: 2; }
+      .core { fill: #edf7ef; stroke: #559568; stroke-width: 2; }
+      .data { fill: #f3effb; stroke: #836ab1; stroke-width: 2; }
+      .output { fill: #ffffff; stroke: #6f8da9; stroke-width: 2; }
+      .head { font-size: 18px; font-weight: 700; }
+      .body { font-size: 14px; fill: #40566c; }
+      .small { font-size: 13px; fill: #526579; }
+      .arrow { stroke: #3e6887; stroke-width: 2.5; fill: none; marker-end: url(#arrow); }
+      .dash { stroke-dasharray: 7 6; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#3e6887"/>
+    </marker>
+  </defs>
+
+  <rect width="1400" height="850" fill="#ffffff"/>
+  <text x="55" y="55" class="title">Simple, Extensible Sensor Architecture</text>
+  <text x="55" y="83" class="subtitle">One driver contract • one registry • one ingestion path • one Pi application</text>
+
+  <rect x="35" y="115" width="1330" height="650" rx="18" class="zone"/>
+  <text x="65" y="150" class="head">RASPBERRY PI CONTROL SYSTEM</text>
+
+  <rect x="65" y="190" width="245" height="115" rx="12" class="input"/>
+  <text x="88" y="225" class="head">Direct Pi sensors</text>
+  <text x="88" y="252" class="body">GPIO • I2C • 1-Wire • USB</text>
+  <text x="88" y="277" class="body">Temperature, humidity, etc.</text>
+
+  <rect x="65" y="355" width="245" height="120" rx="12" class="input"/>
+  <text x="88" y="390" class="head">Remote sensor nodes</text>
+  <text x="88" y="417" class="body">ESP32 devices over the LAN</text>
+  <text x="88" y="442" class="body">POST the same reading format</text>
+
+  <rect x="370" y="175" width="265" height="145" rx="12" class="extension"/>
+  <text x="393" y="211" class="head">Sensor driver registry</text>
+  <text x="393" y="239" class="body">Each driver only implements:</text>
+  <text x="410" y="266" class="body">1. initialize()</text>
+  <text x="410" y="291" class="body">2. read()</text>
+
+  <rect x="370" y="355" width="265" height="120" rx="12" class="core"/>
+  <text x="393" y="390" class="head">Polling collector</text>
+  <text x="393" y="417" class="body">Reads all registered drivers</text>
+  <text x="393" y="442" class="body">Isolates failures per sensor</text>
+
+  <rect x="700" y="255" width="260" height="160" rx="12" class="core"/>
+  <text x="723" y="291" class="head">One ingestion API</text>
+  <text x="723" y="319" class="body">POST /api/v1/readings</text>
+  <text x="723" y="346" class="body">Authenticate • validate</text>
+  <text x="723" y="373" class="body">Store • update heartbeat</text>
+  <text x="723" y="400" class="body">Trigger alert evaluation</text>
+
+  <rect x="1025" y="190" width="275" height="115" rx="12" class="data"/>
+  <text x="1048" y="225" class="head">Monitoring store</text>
+  <text x="1048" y="252" class="body">Devices • readings • rules</text>
+  <text x="1048" y="277" class="body">SQLite target / store adapter</text>
+
+  <rect x="1025" y="355" width="275" height="120" rx="12" class="data"/>
+  <text x="1048" y="390" class="head">Alert engine</text>
+  <text x="1048" y="417" class="body">Thresholds • duration • recovery</text>
+  <text x="1048" y="442" class="body">Offline check every 30 seconds</text>
+
+  <rect x="700" y="535" width="260" height="115" rx="12" class="output"/>
+  <text x="723" y="570" class="head">Dashboard API + kiosk</text>
+  <text x="723" y="597" class="body">Doctors • device status • trends</text>
+  <text x="723" y="622" class="body">Active and resolved alerts</text>
+
+  <rect x="1025" y="535" width="275" height="115" rx="12" class="output"/>
+  <text x="1048" y="570" class="head">Notification outputs</text>
+  <text x="1048" y="597" class="body">Local buzzer / approved channel</text>
+  <text x="1048" y="622" class="body">Independent of data collection</text>
+
+  <path d="M310 247 H370" class="arrow"/>
+  <path d="M502 320 V355" class="arrow"/>
+  <path d="M635 415 H665 V335 H700" class="arrow"/>
+  <path d="M310 415 H700" class="arrow dash"/>
+  <path d="M960 305 H990 V247 H1025" class="arrow"/>
+  <path d="M960 365 H990 V415 H1025" class="arrow"/>
+  <path d="M1162 305 V355" class="arrow"/>
+  <path d="M1025 247 H985 V592 H960" class="arrow"/>
+  <path d="M1162 475 V535" class="arrow"/>
+
+  <rect x="65" y="690" width="1235" height="48" rx="10" fill="#fffdf6" stroke="#dcc98d" stroke-width="1.5"/>
+  <text x="88" y="720" class="small">ADD A SENSOR: create driver → add one registry entry → add device record and optional alert rules. Existing metrics require no API or dashboard pipeline change.</text>
+
+  <text x="55" y="810" class="small">Safety: IoT reporting supplements but never replaces certified fire detection, local alarms, or emergency procedures.</text>
+</svg>
