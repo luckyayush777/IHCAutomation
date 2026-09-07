@@ -1,5 +1,19 @@
 # IHC doctor schedule prototype
 
+## Current design preview
+
+`index.html` is an exact copy of `references/ihc_doc.html`, including its inline
+styles, scripts, sample people, and schedule behavior. Open it directly in a
+browser, or run `python doctor_scheduler/server.py` from the repository root and
+visit <http://127.0.0.1:8080>.
+
+This preview uses the reference's sample data rather than the CSV endpoint.
+The earlier preview controls and browser smoke check do not apply to this page.
+The implementation notes below describe the previous CSV prototype, whose
+supporting files remain available for later integration.
+
+## Previous CSV prototype
+
 A separate, responsive website with a weekly timetable, currently scheduled
 doctors, and currently scheduled staff. Plain HTML/CSS/JavaScript and a small
 Python standard-library server; no package installation or build step required.
