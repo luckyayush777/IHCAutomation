@@ -14,3 +14,6 @@ doctor_scheduler/keys
 doctor_scheduler/.venv/
 __pycache__/
 doctor_scheduler/.cache/
+
+# Local Google service-account credentials
+/ihcautomation-ab8088bef327.json

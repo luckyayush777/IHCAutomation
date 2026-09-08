@@ -98,6 +98,22 @@ compatible personnel/history columns. Existing accounts were only in server
 memory, so create each staff account again. Historical notes/revisions remain
 private for compatibility; the simpler form does not collect notes.
 
+## Local setup and real generation (macOS/Linux)
+
+From the repository root, use Python 3.10 or newer (the commands below use 3.13):
+
+```sh
+python3.13 -m venv doctor_scheduler/.venv
+doctor_scheduler/.venv/bin/python -m pip install -r doctor_scheduler/requirements.txt
+doctor_scheduler/.venv/bin/python doctor_scheduler/build_health_centre.py
+```
+
+Keep one service-account JSON in the ignored `doctor_scheduler/keys/` directory,
+or export `GOOGLE_APPLICATION_CREDENTIALS` with its absolute path before generation.
+Reuse a working `.venv` on this machine; create it separately on each machine.
+For the remaining Windows commands, replace `.venv/Scripts/python.exe` with
+`.venv/bin/python` on macOS/Linux.
+
 ## Local setup and real generation (Windows)
 
 Run these commands from the repository root:
@@ -116,7 +132,20 @@ HTML goes to `doctor_scheduler/public/index.html` and private data to
 
 ### Run locally and use the form
 
-From the repository root:
+After the first generation, this shortcut works from the repository root on
+Windows and macOS/Linux with Node.js 22.12 or newer:
+
+```sh
+npm run dev:scheduler
+```
+
+It selects this machine's virtual-environment Python and runs `dev.py`; it needs
+no extra Node packages. Use `npm run dev:scheduler -- --port 8083` for another port.
+It uses the generated cache, so run the builder again when you need fresh Sheets
+data. For macOS/Linux the direct command is
+`doctor_scheduler/.venv/bin/python doctor_scheduler/dev.py`.
+
+Or run Python directly on Windows:
 
 ```powershell
 doctor_scheduler/.venv/Scripts/python.exe doctor_scheduler/dev.py
