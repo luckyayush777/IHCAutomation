@@ -2,15 +2,33 @@
 
 ## Current design preview
 
-`index.html` is an exact copy of `references/ihc_doc.html`, including its inline
-styles, scripts, sample people, and schedule behavior. Open it directly in a
+`index.html` is an exact copy of `new_design/index.html`, the supplied static
+design preview with inline styles and rendered schedule data. Open it directly in a
 browser, or run `python doctor_scheduler/server.py` from the repository root and
 visit <http://127.0.0.1:8080>.
 
-This preview uses the reference's sample data rather than the CSV endpoint.
+This preview uses the supplied snapshot rather than the CSV endpoint. Its week
+is 1–7 September 2026, and its "Today" heading is 1 September 2026. Dates,
+highlighting, and duty status do not update automatically in the browser.
 The earlier preview controls and browser smoke check do not apply to this page.
 The implementation notes below describe the previous CSV prototype, whose
 supporting files remain available for later integration.
+
+### Supplied design files
+
+- `new_design/liveihc-template.html` is a Jinja2 HTML template: the layout and
+  styles, with placeholders and loops for the schedule, people, and announcements.
+- `new_design/build_health_centre.py` contains hardcoded profiles, schedules,
+  announcements, and contacts. It parses those values and uses Jinja2 to render
+  the template into `index.html`. It does not fetch Google Sheets or the local CSV.
+- `new_design/index.html` is the generated output that a browser can display.
+
+The generator requires Python and Jinja2 and expects to run from `new_design`
+with its default arguments. Running it there regenerates `new_design/index.html`;
+copy that file to `doctor_scheduler/index.html` to update this preview again.
+It calculates status at generation time and lists everyone scheduled that day,
+not just those whose shifts are active at that moment. It falls back to matching
+the weekday when today's exact date is absent, retaining the old feed date.
 
 ## Previous CSV prototype
 
