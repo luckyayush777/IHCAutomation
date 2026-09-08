@@ -30,6 +30,52 @@ export function attendanceGroups(doctors, shifts, attendance, day, disconnected 
   return { available, groups };
 }
 
+export function mergeActualSchedule(monthlySchedule = {}, admin = null) {
+  const merged = Object.fromEntries(
+    Object.entries(monthlySchedule).map(([day, shifts]) => [
+      day,
+      Array.isArray(shifts) ? shifts.map((shift) => ({ ...shift })) : shifts,
+    ]),
+  );
+  const overrides = admin?.actual_schedule ?? admin?.schedule;
+  if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) return merged;
+  for (const [day, shifts] of Object.entries(overrides)) {
+    if (shifts === null) delete merged[day];
+    else if (Array.isArray(shifts)) merged[day] = shifts.map((shift) => ({ ...shift }));
+  }
+  return merged;
+}
+
+export function adminAttendanceGroups(doctors, admin, day, disconnected = false) {
+  const available =
+    !disconnected &&
+    admin?.date === day &&
+    (admin.status === undefined || admin.status === 'ok') &&
+    Array.isArray(admin.records);
+  const profiles = new Map(doctors.map((doctor) => [doctor.name, doctor]));
+  const groups = {
+    present: { label: 'Marked present', doctors: [] },
+    absent: { label: 'Marked absent', doctors: [] },
+    unconfirmed: { label: 'Awaiting confirmation', doctors: [] },
+  };
+  for (const record of available ? admin.records : []) {
+    if (!record || typeof record.name !== 'string' || !record.name.trim()) continue;
+    const profile = profiles.get(record.name) ?? {
+      name: record.name,
+      role: record.role ?? '',
+      qual: record.qual ?? '',
+    };
+    const state =
+      record.state === 'present' || record.state === 'absent' ? record.state : 'unconfirmed';
+    groups[state].doctors.push({
+      ...profile,
+      shifts: Array.isArray(record.shifts) ? record.shifts : [],
+      reportedAt: record.updated_at,
+    });
+  }
+  return { available, groups };
+}
+
 export function indiaClock(date = new Date()) {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat('en-GB', {

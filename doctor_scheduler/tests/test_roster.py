@@ -16,6 +16,20 @@ from server import PUBLIC_FILES, REFRESH_SECONDS, RosterStore, ScheduleHandler
 from sheets_client import ReadCooldown, ReadLimiter, SheetsClient
 
 INFO = [["Medical Officer", "System", "Qualification"], ["Dr. Example", "Allopathy", "MBBS"]]
+PERSONNEL_INFO = [
+    ["IHC Personnel", "UserID", "Category", "System", "Qualification", "Contact",
+     "", "Sch. Times", "Value", "", "DocIDs"],
+    ["Dr. Example", "doctor-id", "Doctor", "Allopathy", "MBBS", "private-number",
+     "", "Ad Hoc", "Leave", "", "Dr. Example"],
+    ["Nurse Example", "nurse-id", "Staff", "Nursing", "GNM", "private-number",
+     "", "0000", "0", "", "Dr. Example"],
+    ["", "", "", "", "", "", "", "0015", "15", "", "Dr. Example"],
+]
+DUTY_LIST = [
+    ["Medical Officer", "Day", "Schedule Begin", "Schedule End", "Schedule", "UserID"],
+    ["Dr. Example", "Mon", "0600", "1200", "0600-1200", "doctor-id"],
+    ["Dr. Example", "Tue", "", "", "Ad Hoc", "doctor-id"],
+]
 
 
 def month(*rows):
@@ -57,13 +71,48 @@ class RosterTests(unittest.TestCase):
                 {"values": [{"formattedValue": value} for value in row]} for row in rows
             ]}]}
         client = Mock()
-        client.read_workbook.return_value = {"sheets": [grid("Info", INFO), grid("Sep-2026", month(
+        client.read_workbook.return_value = {"sheets": [grid("Info", INFO), grid("Duty-List", DUTY_LIST), grid("Sep-2026", month(
             ["2026-09-08", "Tue", '{"Dr. Example":["2130–2400"]}'], ["", "", "{}"],
         )), grid("Updates", [["Not a public roster"]])]}
         data = fetch_roster(client)
         self.assertEqual(data["schedule"]["2026-09-08"][0]["end"], 1440)
-        self.assertEqual(data["source_tabs"], ["Info", "Sep-2026"])
+        self.assertEqual(data["ideal_schedule"]["Mon"][0]["start"], 360)
+        self.assertEqual(data["ideal_schedule"]["Tue"][0]["label"], "Ad hoc")
+        self.assertEqual(data["source_tabs"], ["Info", "Duty-List", "Sep-2026"])
         client.read_workbook.assert_called_once_with()
+
+    def test_duty_list_rejects_unknown_people(self):
+        duty = [DUTY_LIST[0], ["Unknown", "Mon", "0600", "1200", "0600-1200"]]
+        with self.assertRaises(ValueError):
+            normalize(INFO, {"Sep-2026": month(
+                ["2026-09-08", "Tue", '{"Dr. Example":["0600-1200"]}'],
+            )}, duty)
+
+    def test_new_personnel_info_filters_doctors_and_keeps_private_fields_out(self):
+        data = normalize(PERSONNEL_INFO, {"Sep-2026": month(
+            ["2026-09-08", "Tue", '{"Dr. Example":["0600-1200"]}'],
+        )})
+        self.assertEqual(data["doctors"], INFO_TO_DOCTORS)
+        self.assertNotIn("user_id", data["doctors"][0])
+        self.assertNotIn("contact", data["doctors"][0])
+
+    def test_new_personnel_columns_are_resolved_by_header(self):
+        info = [
+            ["Category", "Qualification", "Contact", "IHC Personnel", "System", "UserID"],
+            ["Doctor", "MBBS", "private-number", "Dr. Example", "Allopathy", "doctor-id"],
+        ]
+        data = normalize(info, {"Sep-2026": month(
+            ["2026-09-08", "Tue", '{"Dr. Example":["0600-1200"]}'],
+        )})
+        self.assertEqual(data["doctors"], INFO_TO_DOCTORS)
+
+    def test_new_personnel_info_requires_category(self):
+        with self.assertRaisesRegex(ValueError, "Info headers are missing: Category"):
+            normalize(
+                [["IHC Personnel", "System", "Qualification"],
+                 ["Dr. Example", "Allopathy", "MBBS"]],
+                {"Sep-2026": month(["2026-09-08", "Tue", "{}"])},
+            )
 
     def test_shift_boundaries_and_sheet_numeric_format(self):
         self.assertEqual(parse_shift("2130–2400"), {"start": 1290, "end": 1440})
@@ -139,7 +188,7 @@ class RosterTests(unittest.TestCase):
         self.assertEqual(snapshot["staff"], [])
 
     def test_http_never_serves_credentials_sources_or_directory_listings(self):
-        for path in ["/keys/ihcautomation-ab8088bef327.json", "/keys/", "/.cache/roster.json", "/server.py", "/../.env", "/%2e%2e/.env", "/new_design/index.html"]:
+        for path in ["/keys/ihcautomation-ab8088bef327.json", "/keys/", "/.cache/roster.json", "/server.py", "/../.env", "/%2e%2e/.env", "/new_design/index.html", "/src/index.html", "/app.js", "/schedule.js"]:
             handler = object.__new__(ScheduleHandler)
             handler.path = path
             handler.wfile = io.BytesIO()
@@ -150,6 +199,13 @@ class RosterTests(unittest.TestCase):
             handler.send_response.assert_called_once_with(404)
             self.assertEqual(handler.wfile.getvalue(), b"Not found")
         self.assertNotIn("/keys", PUBLIC_FILES)
+
+    def test_public_page_assets_are_explicitly_exposed_but_source_templates_are_private(self):
+        self.assertEqual(PUBLIC_FILES["/src/styles.css"][0], "src/styles.css")
+        self.assertEqual(PUBLIC_FILES["/src/app.js"][0], "src/app.js")
+        self.assertEqual(PUBLIC_FILES["/src/schedule.js"][0], "src/schedule.js")
+        self.assertNotIn("/src/index.html", PUBLIC_FILES)
+        self.assertNotIn("/src/liveihc-template.html", PUBLIC_FILES)
 
 
 INFO_TO_DOCTORS = [{"name": "Dr. Example", "role": "Allopathy", "qual": "MBBS"}]

@@ -153,7 +153,9 @@ class AdminService:
                        for row in db.execute(
                            "SELECT doctor, state, updated_at FROM attendance WHERE date = ?", (day,))
                        if row["doctor"] in names]
-        return {"date": day, "status": "ok", "records": records}
+        # schedule is the future admin-JSON override hook. An entry for a date is
+        # authoritative and replaces that date from the monthly roster.
+        return {"date": day, "status": "ok", "records": records, "schedule": {}}
 
     def today(self):
         now = self.now().astimezone(IST)

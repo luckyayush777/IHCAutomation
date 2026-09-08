@@ -6,6 +6,9 @@ import re
 
 MONTH_TAB = re.compile(r"^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)-\d{4}$")
 DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+LEGACY_INFO_HEADERS = ("Medical Officer", "System", "Qualification")
+PERSONNEL_INFO_HEADERS = ("IHC Personnel", "Category", "System", "Qualification")
+DUTY_HEADERS = ("Medical Officer", "Day", "Schedule Begin", "Schedule End")
 
 
 def minutes(value):
@@ -28,18 +31,88 @@ def parse_shift(value):
     return {"start": start, "end": end}
 
 
-def normalize(info, monthly):
-    if not info or info[0][:3] != ["Medical Officer", "System", "Qualification"]:
-        raise ValueError("Info headers must be Medical Officer, System, Qualification")
+def info_columns(info):
+    if not info:
+        raise ValueError("The Info sheet is empty")
+    headers = [str(value).strip() for value in info[0]]
+    if tuple(headers[:3]) == LEGACY_INFO_HEADERS:
+        return {"name": 0, "category": None, "role": 1, "qual": 2}
+    missing = [header for header in PERSONNEL_INFO_HEADERS if header not in headers]
+    if missing:
+        raise ValueError(f"Info headers are missing: {', '.join(missing)}")
+    return {
+        "name": headers.index("IHC Personnel"),
+        "category": headers.index("Category"),
+        "role": headers.index("System"),
+        "qual": headers.index("Qualification"),
+    }
+
+
+def normalize_ideal_schedule(rows, profiles):
+    ideal = {day: [] for day in DAYS}
+    if rows is None:
+        return ideal
+    if not rows:
+        raise ValueError("The Duty-List sheet is empty")
+    headers = [str(value).strip() for value in rows[0]]
+    missing = [header for header in DUTY_HEADERS if header not in headers]
+    if missing:
+        raise ValueError(f"Duty-List headers are missing: {', '.join(missing)}")
+    columns = {header: headers.index(header) for header in DUTY_HEADERS}
+    schedule_column = headers.index("Schedule") if "Schedule" in headers else None
+
+    def value(row, header):
+        column = columns[header]
+        return str(row[column]).strip() if column < len(row) else ""
+
+    for row in rows[1:]:
+        name = value(row, "Medical Officer")
+        if not name:
+            continue
+        if name not in profiles:
+            raise ValueError("Duty-List: scheduled doctor missing from Info")
+        day = value(row, "Day")
+        if day not in DAYS:
+            raise ValueError("Duty-List: invalid day")
+        begin = value(row, "Schedule Begin")
+        end = value(row, "Schedule End")
+        label = (
+            str(row[schedule_column]).strip()
+            if schedule_column is not None and schedule_column < len(row)
+            else ""
+        )
+        if begin and end:
+            ideal[day].append({"name": name, **parse_shift(f"{begin}-{end}")})
+        elif label.casefold() == "ad hoc":
+            ideal[day].append({"name": name, "label": "Ad hoc"})
+        elif begin or end or label:
+            raise ValueError("Duty-List: incomplete schedule")
+    for shifts in ideal.values():
+        shifts.sort(key=lambda shift: (shift.get("start", 1441), shift["name"]))
+    return ideal
+
+
+def normalize(info, monthly, duty_rows=None):
+    columns = info_columns(info)
+
+    def value(row, column):
+        return str(row[column]).strip() if column is not None and column < len(row) else ""
+
     profiles = {}
     for row in info[1:]:
-        if not row or not str(row[0]).strip():
+        name = value(row, columns["name"])
+        if not name:
             continue
-        name, role, qual = (list(row[:3]) + ["", "", ""])[:3]
-        name = str(name).strip()
+        category = value(row, columns["category"])
+        if columns["category"] is not None and category.casefold() != "doctor":
+            continue
         if name in profiles:
             raise ValueError("Duplicate medical officer in Info")
-        profiles[name] = {"name": name, "role": str(role).strip(), "qual": str(qual).strip()}
+        profiles[name] = {
+            "name": name,
+            "role": value(row, columns["role"]),
+            "qual": value(row, columns["qual"]),
+        }
     schedule = {}
     for title, rows in monthly.items():
         if len(rows) < 3 or rows[2][:3] != ["Date", "Day", "Schedule"]:
@@ -72,7 +145,11 @@ def normalize(info, monthly):
             schedule[key] = sorted(shifts, key=lambda shift: (shift["start"], shift["name"]))
     if not profiles or not schedule:
         raise ValueError("No doctor profiles or dated rosters found")
-    return {"doctors": sorted(profiles.values(), key=lambda doctor: doctor["name"]), "schedule": schedule}
+    return {
+        "doctors": sorted(profiles.values(), key=lambda doctor: doctor["name"]),
+        "schedule": schedule,
+        "ideal_schedule": normalize_ideal_schedule(duty_rows, profiles),
+    }
 
 
 def fetch_roster(client):
@@ -80,16 +157,23 @@ def fetch_roster(client):
     tabs = {sheet["properties"]["title"]: sheet for sheet in workbook["sheets"]}
     if "Info" not in tabs:
         raise ValueError("The Info sheet is missing")
+    if "Duty-List" not in tabs:
+        raise ValueError("The Duty-List sheet is missing")
     months = sorted(title for title in tabs if MONTH_TAB.fullmatch(title))
     if not months:
         raise ValueError("No monthly roster tabs found")
-    titles = ["Info", *months]
+    titles = ["Info", "Duty-List", *months]
     # Other tabs and helper columns never become part of the public API payload.
+    # Read every Info header so personnel columns may move. normalize() selects
+    # only public doctor fields; user IDs, contacts and helper columns stay private.
     data = {}
     for title in titles:
         grids = tabs[title].get("data", [])
         rows = grids[0].get("rowData", []) if grids else []
-        data[title] = [[cell.get("formattedValue", "") for cell in row.get("values", [])[:3]] for row in rows]
-    result = normalize(data.pop("Info"), data)
+        values = [[cell.get("formattedValue", "") for cell in row.get("values", [])] for row in rows]
+        data[title] = values if title in {"Info", "Duty-List"} else [row[:3] for row in values]
+    info = data.pop("Info")
+    duty_rows = data.pop("Duty-List")
+    result = normalize(info, data, duty_rows)
     result["source_tabs"] = titles
     return result

@@ -148,6 +148,8 @@ class AdminTests(unittest.TestCase):
         self.assertEqual(public_after["doctors"], public_before["doctors"])
         self.assertEqual(public_after["attendance"]["records"], [{
             "name": "Dr. Sample A", "state": "present", "updated_at": self.clock[0].isoformat()}])
+        self.assertEqual(public_after["admin"], public_after["attendance"])
+        self.assertEqual(public_after["admin"]["schedule"], {})
         for private in ["note", "updated_by", "revision", "user123", "<script>"]:
             self.assertNotIn(private, json.dumps(public_after))
         self.assertEqual(self.request("/api/admin/attendance", self.update(state="absent", revision=1))[0], 200)
@@ -201,7 +203,9 @@ class AdminTests(unittest.TestCase):
             status, public, _ = self.request("/api/schedule")
         self.assertEqual(status, 200)
         self.assertEqual(len(public["doctors"]), 3)
-        self.assertEqual(public["attendance"], {"status": "unavailable", "records": []})
+        unavailable = {"status": "unavailable", "records": [], "schedule": {}}
+        self.assertEqual(public["attendance"], unavailable)
+        self.assertEqual(public["admin"], unavailable)
         self.assertNotIn("private database detail", json.dumps(public))
 
 

@@ -20,14 +20,17 @@ PUBLIC_FILES = {
     "/": ("index.html", "text/html; charset=utf-8"),
     "/index.html": ("index.html", "text/html; charset=utf-8"),
     "/styles.css": ("styles.css", "text/css; charset=utf-8"),
-    "/app.js": ("app.js", "text/javascript; charset=utf-8"),
-    "/schedule.js": ("schedule.js", "text/javascript; charset=utf-8"),
+    "/src/styles.css": ("src/styles.css", "text/css; charset=utf-8"),
+    "/src/app.js": ("src/app.js", "text/javascript; charset=utf-8"),
+    "/src/schedule.js": ("src/schedule.js", "text/javascript; charset=utf-8"),
+    "/src/data.json": ("src/data.json", "application/json; charset=utf-8"),
     "/admin": ("admin/index.html", "text/html; charset=utf-8"),
     "/admin/": ("admin/index.html", "text/html; charset=utf-8"),
     "/admin/index.html": ("admin/index.html", "text/html; charset=utf-8"),
     "/admin/admin.css": ("admin/admin.css", "text/css; charset=utf-8"),
     "/admin/admin.js": ("admin/admin.js", "text/javascript; charset=utf-8"),
 }
+CONTENT_SECURITY_POLICY = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'"
 
 
 class RosterStore:
@@ -162,10 +165,14 @@ class ScheduleHandler(BaseHTTPRequestHandler):
         if path == "/api/schedule":
             payload = self.server.store.snapshot()
             try:
-                payload["attendance"] = self.server.admin.public_attendance(payload)
+                admin_data = self.server.admin.public_attendance(payload)
+                payload["admin"] = admin_data
+                payload["attendance"] = admin_data
             except Exception as error:
                 logging.error("Public attendance read failed (%s)", type(error).__name__)
-                payload["attendance"] = {"status": "unavailable", "records": []}
+                admin_data = {"status": "unavailable", "records": [], "schedule": {}}
+                payload["admin"] = admin_data
+                payload["attendance"] = admin_data
             body = json.dumps(payload).encode("utf-8")
             status = 200 if "doctors" in payload else 503
             mime = "application/json; charset=utf-8"
@@ -184,7 +191,7 @@ class ScheduleHandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "same-origin")
-        self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'")
+        self.send_header("Content-Security-Policy", CONTENT_SECURITY_POLICY)
         for name, value in headers:
             self.send_header(name, value)
         self.end_headers()

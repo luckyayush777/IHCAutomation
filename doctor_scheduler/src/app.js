@@ -1,4 +1,4 @@
-import { attendanceGroups, indiaClock } from './schedule.js';
+import { adminAttendanceGroups, indiaClock, mergeActualSchedule } from './schedule.js';
 
 const $ = (id) => document.getElementById(id);
 const dateFormat = (date, options) =>
@@ -6,14 +6,16 @@ const dateFormat = (date, options) =>
 const timeFormat = (minutes) =>
   `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 const timing = (shifts) =>
-  shifts.map((shift) => `${timeFormat(shift.start)}–${timeFormat(shift.end)}`).join(', ');
+  shifts
+    .map((shift) => shift.label || `${timeFormat(shift.start)}–${timeFormat(shift.end)}`)
+    .join(', ');
 const dateKey = (date) => date.toISOString().slice(0, 10);
 let data;
 let disconnected = false;
 let loading = false;
 let timer;
-let clockOffset = 0;
 let lastRender = '';
+const dataUrl = new URL('./data.json', import.meta.url);
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -38,7 +40,8 @@ function profile(doctor, className) {
 
 function refreshStatus() {
   if (!data) return;
-  const old = Date.now() + clockOffset - new Date(data.updated_at).getTime() > 150000;
+  const staleAfter = Math.max(300000, (data.refresh_seconds || 120) * 2500);
+  const old = Date.now() - new Date(data.updated_at).getTime() > staleAfter;
   const stale = disconnected || data.status === 'stale' || old;
   const updated = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Asia/Kolkata',
@@ -58,7 +61,7 @@ function refreshStatus() {
 function render(force = false) {
   if (!data) return;
   refreshStatus();
-  const clock = indiaClock(new Date(Date.now() + clockOffset));
+  const clock = indiaClock();
   const today = dateKey(clock.date);
   const renderKey = `${today}/${clock.time}/${data.updated_at}`;
   if (!force && renderKey === lastRender) return;
@@ -72,7 +75,9 @@ function render(force = false) {
   });
   const [hour, minute] = clock.time.split(':').map(Number);
   const now = hour * 60 + minute;
-  const todayShifts = data.schedule[today];
+  const admin = data.admin ?? data.attendance;
+  const actualSchedule = mergeActualSchedule(data.schedule, admin);
+  const todayShifts = actualSchedule[today];
   const active = (shift) => shift.start <= now && now < shift.end;
   const onDuty = new Set((todayShifts || []).filter(active).map((shift) => shift.name));
   $('duty-status').textContent = todayShifts
@@ -82,7 +87,7 @@ function render(force = false) {
     `${dateFormat(week[0].date, { day: 'numeric', month: 'short' })} – ${dateFormat(week[6].date, { day: 'numeric', month: 'short', year: 'numeric' })} · IST`;
   $('weekly').replaceChildren(
     ...week.map((day) => {
-      const shifts = data.schedule[day.key];
+      const shifts = actualSchedule[day.key];
       const column = element('div', `day${day.key === today ? ' today' : ''}`);
       const heading = element('div', 'day-name', day.day);
       heading.append(
@@ -107,25 +112,15 @@ function render(force = false) {
   );
   $('today-title').textContent =
     `Today's Schedule • ${dateFormat(clock.date, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}`;
-  const names = [...new Set((todayShifts || []).map((shift) => shift.name))];
-  const doctors = names.map((name) => data.doctors.find((doctor) => doctor.name === name));
-  const { available, groups } = attendanceGroups(
-    data.doctors,
-    todayShifts,
-    data.attendance,
-    today,
-    disconnected,
-  );
-  $('current-doctors-title').textContent = "Today's doctor attendance";
+  const { available, groups } = adminAttendanceGroups(data.doctors, admin, today, disconnected);
+  $('current-doctors-title').textContent = "Today's attendance";
   $('attendance-status').textContent = !available
-    ? 'Attendance updates unavailable. Presence cannot currently be confirmed.'
-    : todayShifts === undefined
-      ? 'Today’s roster is not published. Staff reports cannot yet be matched to planned shifts.'
-      : 'Presence is reported by staff for today. Shift times below are planned times.';
-  $('attendance-status').classList.toggle('sync-warning', !available || todayShifts === undefined);
+    ? 'Admin attendance data is unavailable.'
+    : 'Presence and absence are reported by authorised staff.';
+  $('attendance-status').classList.toggle('sync-warning', !available);
   $('current-doctors').replaceChildren();
   for (const [key, group] of Object.entries(groups)) {
-    if (key !== 'confirmed' && !group.doctors.length) continue;
+    if (!group.doctors.length) continue;
     const section = element('section', `attendance-group attendance-${key}`);
     section.append(element('h4', '', `${group.label} (${group.doctors.length})`));
     for (const doctor of group.doctors) {
@@ -142,26 +137,26 @@ function render(force = false) {
       }
       section.append(card);
     }
-    if (!group.doctors.length)
-      section.append(
-        element('p', 'empty-message', 'No doctors confirmed by both the roster and staff yet.'),
-      );
     $('current-doctors').append(section);
   }
+  if (available && !Object.values(groups).some((group) => group.doctors.length))
+    $('current-doctors').append(
+      element('p', 'empty-message', 'No attendance has been uploaded for today.'),
+    );
   $('current-weekly').replaceChildren(
-    ...doctors.map((doctor) => {
+    ...data.doctors.map((doctor) => {
       const row = element('div', 'doctor-week');
       row.append(profile(doctor, 'doctor-info').card);
       const days = element('div', 'week-days');
       days.append(
         ...week.map((day) => {
-          const shifts = data.schedule[day.key]?.filter((shift) => shift.name === doctor.name);
+          const shifts = data.ideal_schedule?.[day.day]?.filter(
+            (shift) => shift.name === doctor.name,
+          );
           const cell = element('div', `wday ${shifts?.length ? 'on' : 'off'}`);
           cell.append(
             element('b', '', day.day),
-            document.createTextNode(
-              shifts?.length ? timing(shifts) : shifts ? '—' : 'Not published',
-            ),
+            document.createTextNode(shifts?.length ? timing(shifts) : '—'),
           );
           return cell;
         }),
@@ -170,14 +165,8 @@ function render(force = false) {
       return row;
     }),
   );
-  if (!doctors.length) {
-    const message = todayShifts
-      ? 'No doctors scheduled today.'
-      : 'Today’s schedule has not been published.';
-    if (available && !Object.values(groups).some((group) => group.doctors.length))
-      $('current-doctors').append(element('p', 'empty-message', message));
-    $('current-weekly').append(element('p', 'empty-message', message));
-  }
+  if (!data.doctors.length)
+    $('current-weekly').append(element('p', 'empty-message', 'No ideal schedule is available.'));
   $('doctors-title').textContent = `Doctors (${data.doctors.length})`;
   $('doctors').replaceChildren(...data.doctors.map((doctor) => profile(doctor, 'card').card));
 }
@@ -188,31 +177,22 @@ async function load() {
   clearTimeout(timer);
   let delay = 10000;
   try {
-    const response = await fetch('/api/schedule', {
+    const requestUrl = new URL(dataUrl);
+    requestUrl.searchParams.set('checked', Date.now());
+    const response = await fetch(requestUrl, {
       cache: 'no-store',
       signal: AbortSignal.timeout(10000),
     });
     const next = await response.json();
     if (!response.ok) {
-      if (next.status === 'loading' && !data) {
-        $('sync-status').textContent = 'Connecting to the latest roster…';
-        delay = 2000;
-        return;
-      }
       throw new Error('Schedule unavailable');
     }
     data = next;
-    clockOffset = new Date(data.server_time).getTime() - Date.now();
     disconnected = false;
     $('loading').hidden = true;
     $('schedule-content').hidden = false;
-    // Check saved attendance within 30 seconds; the server alone controls Google reads.
-    delay = data.refreshing
-      ? 2000
-      : Math.max(
-          2000,
-          Math.min(30000, data.next_refresh_at * 1000 - (Date.now() + clockOffset) + 1000),
-        );
+    // Apache serves this snapshot; cron is the only process that reads Google Sheets.
+    delay = 30000;
     render(true);
   } catch {
     disconnected = true;

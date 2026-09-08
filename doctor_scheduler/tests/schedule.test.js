@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { attendanceGroups, indiaClock } from '../schedule.js';
+import {
+  adminAttendanceGroups,
+  attendanceGroups,
+  indiaClock,
+  mergeActualSchedule,
+} from '../src/schedule.js';
 
 test('India date rolls over independently of browser timezone', () => {
   const clock = indiaClock(new Date('2026-09-06T19:00:00Z'));
@@ -59,4 +64,39 @@ test('An unpublished roster differs from an explicitly empty roster', () => {
   const empty = attendanceGroups(doctors, [], attendance, day).groups;
   assert.deepEqual(names(empty.confirmed), []);
   assert.deepEqual(names(empty.unscheduled), ['A', 'D']);
+});
+
+test('Admin schedule replaces conflicting monthly dates without mutating either source', () => {
+  const monthly = {
+    '2026-09-08': [{ name: 'A', start: 540, end: 720 }],
+    '2026-09-09': [{ name: 'B', start: 600, end: 780 }],
+  };
+  const admin = {
+    schedule: {
+      '2026-09-08': [{ name: 'D', start: 660, end: 840 }],
+      '2026-09-10': [],
+    },
+  };
+  const before = JSON.stringify({ monthly, admin });
+  const actual = mergeActualSchedule(monthly, admin);
+  assert.deepEqual(actual['2026-09-08'], [{ name: 'D', start: 660, end: 840 }]);
+  assert.deepEqual(actual['2026-09-09'], monthly['2026-09-09']);
+  assert.deepEqual(actual['2026-09-10'], []);
+  assert.equal(JSON.stringify({ monthly, admin }), before);
+});
+
+test('Middle table contains only admin-uploaded attendance, including admin-only doctors', () => {
+  const admin = {
+    date: day,
+    status: 'ok',
+    records: [
+      { name: 'A', state: 'present' },
+      { name: 'Visiting Doctor', role: 'Visiting', qual: 'MD', state: 'absent' },
+    ],
+  };
+  const { available, groups } = adminAttendanceGroups(doctors, admin, day);
+  assert.equal(available, true);
+  assert.deepEqual(names(groups.present), ['A']);
+  assert.deepEqual(names(groups.absent), ['Visiting Doctor']);
+  assert.deepEqual(names(groups.unconfirmed), []);
 });

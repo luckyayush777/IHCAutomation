@@ -1,5 +1,5 @@
-// Live design smoke test. Start the scheduler on 8081 and dedicated Chrome CDP on 9223.
-// Requests go to the local cache; mocked changes do not edit or reread Google Sheets.
+// Static design smoke test. Serve doctor_scheduler on 8081 and Chrome CDP on 9223.
+// Requests read generated data.json; mocked changes never edit or reread Google Sheets.
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 
@@ -10,10 +10,12 @@ await new Promise((resolve) => socket.addEventListener('open', resolve, { once: 
 let nextId = 0;
 const pending = new Map();
 const errors = [];
+const browserLogs = [];
 let mockResponse = null;
 socket.addEventListener('message', async ({ data }) => {
   const message = JSON.parse(data);
   if (message.method === 'Runtime.exceptionThrown') errors.push(message.params.exceptionDetails);
+  if (message.method === 'Log.entryAdded') browserLogs.push(message.params.entry);
   if (message.method === 'Fetch.requestPaused') {
     await command('Fetch.fulfillRequest', {
       requestId: message.params.requestId,
@@ -51,11 +53,13 @@ async function waitFor(expression) {
     if (await evaluate(expression)) return;
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  throw new Error(`Timed out: ${expression}`);
+  throw new Error(
+    `Timed out: ${expression}; browser errors: ${JSON.stringify(errors)}; logs: ${JSON.stringify(browserLogs)}`,
+  );
 }
 
 try {
-  const live = await (await fetch(`${base}/api/schedule`)).json();
+  const live = await (await fetch(`${base}/src/data.json`)).json();
   const doctorCount = live.doctors.length;
   assert.ok(doctorCount > 0);
   assert.deepEqual(live.staff, []);
@@ -65,10 +69,18 @@ try {
     '/.cache/roster.json',
     '/server.py',
     '/new_design/index.html',
+    '/src/index.html',
+    '/src/liveihc-template.html',
+    '/app.js',
+    '/schedule.js',
   ]) {
     assert.equal((await fetch(base + path)).status, 404);
   }
+  for (const path of ['/src/styles.css', '/src/app.js', '/src/schedule.js', '/src/data.json']) {
+    assert.equal((await fetch(base + path)).status, 200);
+  }
   await command('Runtime.enable');
+  await command('Log.enable');
   await command('Page.enable');
   await command('Network.enable');
   await command('Page.navigate', { url: base });
@@ -101,26 +113,29 @@ try {
       );
     }
   }
-  await command('Network.setBlockedURLs', { urls: ['*/api/schedule'] });
+  await command('Network.setBlockedURLs', { urls: ['*/src/data.json*'] });
   await evaluate("document.getElementById('retry').click()");
   await waitFor("document.getElementById('sync-status').textContent.includes('Updates delayed')");
   assert.equal(await evaluate("document.querySelectorAll('#doctors .card').length"), doctorCount);
   await command('Network.setBlockedURLs', { urls: [] });
   await evaluate("document.getElementById('retry').click()");
-  await waitFor("document.getElementById('sync-status').textContent.includes('Roster up to date')");
+  await waitFor(
+    `document.querySelectorAll('#doctors .card').length === ${doctorCount} && !document.getElementById('schedule-content').hidden`,
+  );
 
   const frozen = Date.parse('2026-09-08T18:30:00+05:30');
   mockResponse = {
     ...live,
     status: 'ok',
-    server_time: new Date(frozen).toISOString(),
-    updated_at: new Date(frozen).toISOString(),
-    next_refresh_at: frozen / 1000 + 1,
+    updated_at: new Date().toISOString(),
     doctors: [{ name: 'Dr. Test <script>', role: 'Allopathy', qual: 'MBBS' }],
-    schedule: { '2026-09-08': [{ name: 'Dr. Test <script>', start: 1080, end: 1140 }] },
-    attendance: { date: '2026-09-08', status: 'ok', records: [] },
+    schedule: { '2026-09-08': [{ name: 'Dr. Test <script>', start: 0, end: 1440 }] },
+    ideal_schedule: {
+      Tue: [{ name: 'Dr. Test <script>', start: 360, end: 720 }],
+    },
+    admin: { date: '2026-09-08', status: 'ok', records: [], schedule: {} },
   };
-  await command('Fetch.enable', { patterns: [{ urlPattern: '*/api/schedule' }] });
+  await command('Fetch.enable', { patterns: [{ urlPattern: '*/src/data.json*' }] });
   await command('Page.reload');
   await waitFor(
     "document.getElementById('duty-status').textContent === 'Doctors scheduled now: 1'",
@@ -131,61 +146,43 @@ try {
     /Dr\. Test <script>/,
   );
   await waitFor(
-    "document.querySelectorAll('.attendance-unconfirmed .person-current').length === 1",
+    "document.getElementById('current-doctors').textContent.includes('No attendance has been uploaded')",
   );
-  assert.equal(
-    await evaluate("document.querySelectorAll('.attendance-confirmed .person-current').length"),
-    0,
-  );
-  const sheetSections = await evaluate(
-    "[document.getElementById('weekly').innerHTML, document.getElementById('current-weekly').innerHTML]",
-  );
+  const actualBefore = await evaluate("document.getElementById('weekly').innerHTML");
+  const idealBefore = await evaluate("document.getElementById('current-weekly').innerHTML");
   const record = {
     name: 'Dr. Test <script>',
     state: 'present',
     updated_at: new Date(frozen).toISOString(),
   };
-  mockResponse.attendance.records = [record];
-  await waitFor("document.querySelectorAll('.attendance-confirmed .person-current').length === 1");
-  assert.deepEqual(
-    await evaluate(
-      "[document.getElementById('weekly').innerHTML, document.getElementById('current-weekly').innerHTML]",
-    ),
-    sheetSections,
-  );
-  mockResponse.attendance.records = [{ ...record, state: 'absent' }];
+  mockResponse.admin.records = [record];
+  await waitFor("document.querySelectorAll('.attendance-present .person-current').length === 1");
+  assert.equal(await evaluate("document.getElementById('weekly').innerHTML"), actualBefore);
+  assert.equal(await evaluate("document.getElementById('current-weekly').innerHTML"), idealBefore);
+  mockResponse.admin.records = [{ ...record, state: 'absent' }];
   await waitFor("document.querySelectorAll('.attendance-absent .person-current').length === 1");
   assert.equal(
-    await evaluate("document.querySelectorAll('.attendance-confirmed .person-current').length"),
+    await evaluate("document.querySelectorAll('.attendance-present .person-current').length"),
     0,
   );
-  assert.deepEqual(
-    await evaluate(
-      "[document.getElementById('weekly').innerHTML, document.getElementById('current-weekly').innerHTML]",
-    ),
-    sheetSections,
-  );
-  mockResponse.attendance.records = [record];
-  mockResponse.schedule = { '2026-09-08': [] };
-  await waitFor(
-    "document.querySelectorAll('.attendance-unscheduled .person-current').length === 1",
-  );
-  mockResponse.schedule = {};
-  await waitFor(
-    "document.querySelectorAll('.attendance-unpublished .person-current').length === 1",
-  );
-  mockResponse.attendance.records = [];
-  // The next automatic cache poll must update the screen without reload/click.
+  mockResponse.admin.schedule = {
+    '2026-09-08': [{ name: 'Admin Override', start: 1200, end: 1260 }],
+  };
+  await evaluate("document.getElementById('retry').click()");
+  await waitFor("document.getElementById('weekly').textContent.includes('Admin Override')");
+  assert.notEqual(await evaluate("document.getElementById('weekly').innerHTML"), actualBefore);
+  assert.equal(await evaluate("document.getElementById('current-weekly').innerHTML"), idealBefore);
+  mockResponse.admin.records = [];
+  mockResponse.admin.schedule = {};
   mockResponse = {
     ...mockResponse,
     updated_at: new Date(frozen + 1000).toISOString(),
     schedule: { '2026-09-08': [] },
   };
-  await waitFor(
-    "document.getElementById('duty-status').textContent === 'Doctors scheduled now: 0'",
-  );
+  await evaluate("document.getElementById('retry').click()");
+  await waitFor("document.getElementById('weekly').textContent.includes('No doctors scheduled')");
   assert.match(
-    await evaluate("document.getElementById('current-doctors').textContent"),
+    await evaluate("document.getElementById('weekly').textContent"),
     /No doctors scheduled/,
   );
   mockResponse = {
@@ -193,9 +190,10 @@ try {
     schedule: {},
     updated_at: new Date(frozen + 2000).toISOString(),
   };
+  await evaluate("document.getElementById('retry').click()");
   await waitFor("document.getElementById('duty-status').textContent.includes('not published')");
   await command('Fetch.disable');
-  await command('Network.setBlockedURLs', { urls: ['*/api/schedule'] });
+  await command('Network.setBlockedURLs', { urls: ['*/src/data.json*'] });
   await command('Page.reload');
   await waitFor(
     "document.getElementById('loading').textContent.includes('temporarily unavailable')",
@@ -205,7 +203,7 @@ try {
   await waitFor(`document.querySelectorAll('#doctors .card').length === ${doctorCount}`);
   assert.equal(errors.length, 0, JSON.stringify(errors));
   console.log(
-    'PASS: profiles, empty staff, 6 viewport widths, automatic attendance categories, unchanged weekly sections, empty/unpublished dates, offline recovery, safe text, and blocked private files.',
+    'PASS: actual/admin/ideal source separation, admin override priority, profiles, 6 viewport widths, empty/unpublished dates, offline recovery, safe text, and blocked private files.',
   );
 } finally {
   await command('Browser.close');
