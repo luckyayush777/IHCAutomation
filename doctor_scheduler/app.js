@@ -1,18 +1,19 @@
-import { DAYS, indiaClock, isActive, nextShift } from './schedule.js';
+import { indiaClock } from './schedule.js';
 
 const $ = (id) => document.getElementById(id);
-const colors = {
-  blue: '#6a95c8',
-  purple: '#a494c5',
-  teal: '#6eada8',
-  orange: '#d6a576',
-  pink: '#cb90a6',
-};
 const dateFormat = (date, options) =>
   new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', ...options }).format(date);
+const timeFormat = (minutes) =>
+  `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+const timing = (shifts) =>
+  shifts.map((shift) => `${timeFormat(shift.start)}–${timeFormat(shift.end)}`).join(', ');
+const dateKey = (date) => date.toISOString().slice(0, 10);
 let data;
-let preview = null;
-let lastRendered = '';
+let disconnected = false;
+let loading = false;
+let timer;
+let clockOffset = 0;
+let lastRender = '';
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -21,229 +22,187 @@ function element(tag, className, text) {
   return node;
 }
 
-function photo(profile, className) {
-  const img = element('img', className);
-  img.src = profile.photo || 'assets/portrait.svg';
-  img.alt = profile.photo ? `Portrait of ${profile.name}` : 'Photo placeholder';
-  img.addEventListener(
-    'error',
-    () => {
-      img.src = 'assets/portrait.svg';
-    },
-    { once: true },
+function profile(doctor, className) {
+  const card = element('div', className);
+  const photo = element('span', 'photo');
+  photo.setAttribute('aria-hidden', 'true');
+  const bio = element('div', 'bio');
+  bio.append(
+    element('div', 'name', doctor.name),
+    element('div', 'role', doctor.role),
+    element('div', 'qual', doctor.qual),
   );
-  return img;
+  card.append(photo, bio);
+  return { card, bio };
 }
 
-function empty(title, message) {
-  const node = element('div', 'empty-state');
-  const symbol = element('span', 'empty-symbol', '–');
-  symbol.setAttribute('aria-hidden', 'true');
-  node.append(symbol, element('h4', '', title), element('p', '', message));
-  return node;
-}
-
-function renderWeek(context, clock) {
-  const monday = new Date(clock.date);
-  monday.setUTCDate(monday.getUTCDate() - DAYS.indexOf(clock.day));
-  const sunday = new Date(monday);
-  sunday.setUTCDate(sunday.getUTCDate() + 6);
-  $('week-label').textContent =
-    `${dateFormat(monday, { day: 'numeric', month: 'short' })} – ${dateFormat(sunday, { day: 'numeric', month: 'short' })}`;
-  $('week-grid').replaceChildren(
-    ...DAYS.map((day, index) => {
-      const selected = day === context.day;
-      const date = new Date(monday);
-      date.setUTCDate(date.getUTCDate() + index);
-      const column = element('div', `day-column${selected ? ' is-today' : ''}`);
-      const heading = element('div', 'day-heading');
-      const title = element('div');
-      title.append(
-        element('span', 'day-name', day),
-        element('span', 'day-date', dateFormat(date, { day: 'numeric', month: 'short' })),
-      );
-      heading.append(title);
-      if (selected) heading.append(element('span', 'day-badge', preview ? 'Preview' : 'Today'));
-      const shifts = element('div', 'day-shifts');
-      for (const shift of data.shifts.filter((s) => s.day === day)) {
-        const doctor = data.doctors.find((d) => d.id === shift.doctor_id);
-        const active = selected && isActive(shift, context.day, context.time);
-        const block = element('div', `shift${active ? ' is-active' : ''}`);
-        block.style.setProperty('--doctor-color', colors[doctor?.color] || colors.blue);
-        const top = element('div', 'shift-top');
-        top.append(element('span', 'shift-name', doctor?.name || shift.doctor_id));
-        if (active) {
-          const dot = element('span', 'active-dot');
-          dot.setAttribute('role', 'img');
-          dot.setAttribute('aria-label', 'Scheduled now');
-          top.append(dot);
-        }
-        block.append(top, element('span', 'shift-time', `${shift.start} – ${shift.end}`));
-        shifts.append(block);
-      }
-      if (!shifts.childElementCount) shifts.append(element('p', 'specialty', 'No listed shifts'));
-      column.append(heading, shifts);
-      return column;
-    }),
-  );
-}
-
-function renderDoctors(context) {
-  const active = data.shifts.filter((s) => isActive(s, context.day, context.time));
-  const doctors = [...new Set(active.map((s) => s.doctor_id))];
-  $('doctor-count').textContent = doctors.length;
-  $('doctors').replaceChildren(
-    ...doctors.map((id) => {
-      const doctor = data.doctors.find((d) => d.id === id) || {
-        name: id,
-        specialization: 'Specialty pending',
-        room: 'Pending',
-      };
-      const shift = active.find((s) => s.doctor_id === id);
-      const card = element('article', 'doctor-card');
-      const profile = element('div', 'doctor-profile');
-      const bio = element('div');
-      bio.append(
-        element('h4', 'doctor-name', doctor.name),
-        element('p', 'specialty', doctor.specialization),
-        element('span', 'room', `Consultation room ${doctor.room}`),
-      );
-      profile.append(photo(doctor, 'portrait'), bio);
-      const footer = element('div', 'doctor-card-footer');
-      const status = element('span', 'available-label');
-      status.append(element('span', 'live-dot'), document.createTextNode('Scheduled now'));
-      footer.append(status, element('span', '', `Until ${shift.end}`));
-      card.append(profile, footer);
-      return card;
-    }),
-  );
-  if (!doctors.length) {
-    const next = nextShift(data.shifts, context.day, context.time);
-    const name = data.doctors.find((d) => d.id === next?.doctor_id)?.name || next?.doctor_id;
-    $('doctors').append(
-      empty(
-        'No doctors scheduled right now',
-        next
-          ? `Next: ${name} · ${next.day === context.day && next.offset < 1440 ? 'Today' : next.day}, ${next.start}`
-          : 'No upcoming shifts have been added.',
-      ),
-    );
-  }
-}
-
-function renderStaff(context) {
-  const staff = data.staff.filter((person) => isActive(person, context.day, context.time));
-  $('staff-count').textContent = staff.length;
-  $('staff').replaceChildren(
-    ...staff.map((person) => {
-      const row = element('article', 'staff-row');
-      const info = element('div', 'staff-info');
-      info.append(
-        element('h4', 'staff-name', person.name),
-        element('p', 'staff-role', `${person.role} · ${person.location}`),
-      );
-      const time = element('div', 'staff-time');
-      time.append(
-        element('strong', '', `${person.start} – ${person.end}`),
-        document.createTextNode('Scheduled now'),
-      );
-      row.append(photo(person, 'staff-portrait'), info, time);
-      return row;
-    }),
-  );
-  if (!staff.length)
-    $('staff').append(
-      empty(
-        'No staff scheduled right now',
-        'Sample staff shifts will appear during their listed hours.',
-      ),
-    );
+function refreshStatus() {
+  if (!data) return;
+  const old = Date.now() + clockOffset - new Date(data.updated_at).getTime() > 150000;
+  const stale = disconnected || data.status === 'stale' || old;
+  const updated = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).format(new Date(data.updated_at));
+  $('sync-status').textContent =
+    `${stale ? 'Updates delayed — showing the last saved roster.' : 'Roster up to date.'} Last checked ${updated} IST.`;
+  $('sync-status').classList.toggle('sync-warning', stale);
+  $('retry').hidden = !stale;
 }
 
 function render(force = false) {
-  const clock = indiaClock();
-  $('current-date').textContent = dateFormat(clock.date, {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
-  $('current-time').textContent = clock.time;
   if (!data) return;
-  const context = preview || clock;
-  const key = `${clock.date.toISOString()}/${context.day}/${context.time}/${!!preview}`;
-  if (!force && key === lastRendered) return;
-  lastRendered = key;
-  $('now-label').textContent = `${preview ? 'Preview · ' : ''}${context.day}, ${context.time} IST`;
-  let banner = $('preview-banner');
-  if (!banner) {
-    banner = element('div', 'preview-banner');
-    banner.id = 'preview-banner';
-    banner.setAttribute('role', 'status');
-    $('schedule-content').prepend(banner);
+  refreshStatus();
+  const clock = indiaClock(new Date(Date.now() + clockOffset));
+  const today = dateKey(clock.date);
+  const renderKey = `${today}/${clock.time}/${data.updated_at}`;
+  if (!force && renderKey === lastRender) return;
+  lastRender = renderKey;
+  const monday = new Date(clock.date);
+  monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
+  const week = Array.from({ length: 7 }, (_, i) => {
+    const date = new Date(monday);
+    date.setUTCDate(monday.getUTCDate() + i);
+    return { date, key: dateKey(date), day: dateFormat(date, { weekday: 'short' }) };
+  });
+  const [hour, minute] = clock.time.split(':').map(Number);
+  const now = hour * 60 + minute;
+  const todayShifts = data.schedule[today];
+  const active = (shift) => shift.start <= now && now < shift.end;
+  const onDuty = new Set((todayShifts || []).filter(active).map((shift) => shift.name));
+  $('duty-status').textContent = todayShifts
+    ? `Doctors scheduled now: ${onDuty.size}`
+    : 'Today’s roster not published';
+  $('week-label').textContent =
+    `${dateFormat(week[0].date, { day: 'numeric', month: 'short' })} – ${dateFormat(week[6].date, { day: 'numeric', month: 'short', year: 'numeric' })} · IST`;
+  $('weekly').replaceChildren(
+    ...week.map((day) => {
+      const shifts = data.schedule[day.key];
+      const column = element('div', `day${day.key === today ? ' today' : ''}`);
+      const heading = element('div', 'day-name', day.day);
+      heading.append(
+        element('div', 'day-date', dateFormat(day.date, { day: '2-digit', month: 'short' })),
+      );
+      const body = element('div', 'day-body');
+      for (const shift of shifts || []) {
+        const block = element(
+          'div',
+          `shift${day.key === today && active(shift) ? ' active-shift' : ''}`,
+        );
+        block.append(element('strong', '', shift.name), element('time', '', timing([shift])));
+        body.append(block);
+      }
+      if (!shifts?.length)
+        body.append(
+          element('p', 'empty-message', shifts ? 'No doctors scheduled' : 'Schedule not published'),
+        );
+      column.append(heading, body);
+      return column;
+    }),
+  );
+  $('today-title').textContent =
+    `Today's Schedule • ${dateFormat(clock.date, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}`;
+  const names = [...new Set((todayShifts || []).map((shift) => shift.name))];
+  const doctors = names.map((name) => data.doctors.find((doctor) => doctor.name === name));
+  $('current-doctors-title').textContent = `Doctors scheduled today (${doctors.length})`;
+  $('current-doctors').replaceChildren(
+    ...doctors.map((doctor) => {
+      const { card, bio } = profile(doctor, 'person-current');
+      bio.append(
+        element('div', 'timing', timing(todayShifts.filter((shift) => shift.name === doctor.name))),
+      );
+      if (onDuty.has(doctor.name)) bio.append(element('div', 'scheduled-now', 'Scheduled now'));
+      return card;
+    }),
+  );
+  $('current-weekly').replaceChildren(
+    ...doctors.map((doctor) => {
+      const row = element('div', 'doctor-week');
+      row.append(profile(doctor, 'doctor-info').card);
+      const days = element('div', 'week-days');
+      days.append(
+        ...week.map((day) => {
+          const shifts = data.schedule[day.key]?.filter((shift) => shift.name === doctor.name);
+          const cell = element('div', `wday ${shifts?.length ? 'on' : 'off'}`);
+          cell.append(
+            element('b', '', day.day),
+            document.createTextNode(
+              shifts?.length ? timing(shifts) : shifts ? '—' : 'Not published',
+            ),
+          );
+          return cell;
+        }),
+      );
+      row.append(days);
+      return row;
+    }),
+  );
+  if (!doctors.length) {
+    const message = todayShifts
+      ? 'No doctors scheduled today.'
+      : 'Today’s schedule has not been published.';
+    $('current-doctors').append(element('p', 'empty-message', message));
+    $('current-weekly').append(element('p', 'empty-message', message));
   }
-  banner.hidden = !preview;
-  banner.textContent = preview
-    ? `Preview mode: ${context.day} at ${context.time} IST. Availability below is simulated. Use “Use current time” in prototype controls to return to now.`
-    : '';
-  renderWeek(context, clock);
-  renderDoctors(context);
-  renderStaff(context);
+  $('doctors-title').textContent = `Doctors (${data.doctors.length})`;
+  $('doctors').replaceChildren(...data.doctors.map((doctor) => profile(doctor, 'card').card));
 }
 
 async function load() {
-  $('load-error').hidden = true;
-  $('loading').hidden = false;
+  if (loading) return;
+  loading = true;
+  clearTimeout(timer);
+  let delay = 10000;
   try {
     const response = await fetch('/api/schedule', {
       cache: 'no-store',
       signal: AbortSignal.timeout(10000),
     });
-    if (!response.ok) throw new Error('Schedule unavailable');
-    data = await response.json();
+    const next = await response.json();
+    if (!response.ok) {
+      if (next.status === 'loading' && !data) {
+        $('sync-status').textContent = 'Connecting to the latest roster…';
+        delay = 2000;
+        return;
+      }
+      throw new Error('Schedule unavailable');
+    }
+    data = next;
+    clockOffset = new Date(data.server_time).getTime() - Date.now();
+    disconnected = false;
+    $('loading').hidden = true;
     $('schedule-content').hidden = false;
-    const updated = new Intl.DateTimeFormat('en-GB', {
-      timeZone: 'Asia/Kolkata',
-      day: 'numeric',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23',
-    }).format(new Date(data.updated_at));
-    $('source-note').textContent = `Source: supplied timetable · Local data updated ${updated} IST`;
+    // Follow the server's shared refresh clock. All visitors reuse the same Google read.
+    delay = data.refreshing
+      ? 2000
+      : Math.max(
+          2000,
+          Math.min(120000, data.next_refresh_at * 1000 - (Date.now() + clockOffset) + 1000),
+        );
     render(true);
   } catch {
-    $('load-error').hidden = false;
-    $('schedule-content').hidden = true;
+    disconnected = true;
+    if (data) refreshStatus();
+    else {
+      $('loading').textContent =
+        'The doctor schedule is temporarily unavailable. Retrying automatically.';
+      $('sync-status').textContent = 'Could not load the roster.';
+      $('retry').hidden = false;
+    }
   } finally {
-    $('loading').hidden = true;
+    loading = false;
+    timer = setTimeout(load, delay);
   }
 }
 
-$('apply-preview').addEventListener('click', () => {
-  if (!$('preview-time').reportValidity()) return;
-  preview = { day: $('preview-day').value, time: $('preview-time').value };
-  $('preview-status').textContent = `Previewing ${preview.day} at ${preview.time} IST.`;
-  render(true);
-});
-$('reset-preview').addEventListener('click', () => {
-  preview = null;
-  $('preview-status').textContent = 'Showing the current time.';
-  render(true);
-});
 $('retry').addEventListener('click', load);
-const params = new URLSearchParams(window.location.search);
-if (DAYS.includes(params.get('day')) && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(params.get('time'))) {
-  preview = { day: params.get('day'), time: params.get('time') };
-  $('preview-day').value = preview.day;
-  $('preview-time').value = preview.time;
-  $('preview-status').textContent = `Previewing ${preview.day} at ${preview.time} IST.`;
-} else {
-  $('preview-day').value = indiaClock().day;
-}
-render();
-load();
-setInterval(render, 15000);
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) render();
+  if (!document.hidden) load();
 });
+setInterval(render, 15000);
+load();

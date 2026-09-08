@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: ihc-doctor-scheduler
+    runtime: python
+    plan: free
+    region: singapore
+    rootDir: doctor_scheduler
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server.py --host 0.0.0.0
+    healthCheckPath: /
+    envVars:
+      - key: GOOGLE_APPLICATION_CREDENTIALS
+        value: /etc/secrets/google-service-account.json
+      - key: IHC_SPREADSHEET_ID
+        value: 1ly7oTO9hWSTxfOr1di7H7LMHRgZutOsmfdxJQQhj-KA

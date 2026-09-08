@@ -10,3 +10,7 @@ logs/
 *.tsbuildinfo
 .DS_Store
 Thumbs.db
+doctor_scheduler/keys
+doctor_scheduler/.venv/
+__pycache__/
+doctor_scheduler/.cache/
