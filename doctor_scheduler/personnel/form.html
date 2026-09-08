@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>IHC personnel update</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 32px auto; padding: 0 16px; max-width: 860px; color: #111; background: white; font: 15px/1.5 Consolas, "Courier New", monospace; }
+    h1 { font-size: 19px; margin-bottom: 4px; }
+    .date { margin: 0 0 20px; font-size: 13px; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th, td { padding: 6px 10px; border-bottom: 1px solid #e6e6e6; }
+    th { white-space: nowrap; border-bottom-color: #aaa; }
+    th:first-child { width: 46%; }
+    tbody th { font-weight: normal; white-space: normal; }
+    select, input, button { font: inherit; padding: 5px 8px; border: 1px solid #999; border-radius: 2px; background: white; color: #111; }
+    select { min-width: 84px; }
+    input { width: 100%; min-width: 0; }
+    .credentials { display: grid; grid-template-columns: auto 1fr auto 1fr; align-items: center; gap: 12px; margin: 24px 10px 18px; }
+    button { display: block; margin-left: auto; padding: 7px 20px; cursor: pointer; }
+    .message { padding: 10px; background: #f2f2f2; }
+    a { display: inline-block; margin-top: 20px; font-size: 13px; }
+    @media (max-width: 600px) {
+      .credentials { grid-template-columns: auto 1fr; }
+      table { table-layout: fixed; font-size: 12px; }
+      th, td { padding: 6px 3px; overflow-wrap: anywhere; }
+      th { white-space: normal; }
+      th:first-child { width: 36%; }
+      th:nth-child(2) { width: 18%; }
+      th:nth-child(3) { width: 22%; }
+      th:nth-child(4) { width: 24%; }
+      select { width: 100%; min-width: 0; padding: 4px 2px; font-size: 11px; }
+    }
+  </style>
+</head>
+<body>
+  <h1>IHC personnel update</h1>
+  <p class="date">{{ day }} &bull; India Standard Time</p>
+  {% if message %}<p class="message" role="status">{{ message }}</p>{% endif %}
+  {% if doctors %}
+  <form method="post" action="{{ action }}">
+    <input type="hidden" name="date" value="{{ day }}">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">IHC Personnel</th><th scope="col">UserID</th><th scope="col">Category</th><th scope="col">Status</th></tr></thead>
+        <tbody>
+          {% for person in doctors %}
+          {% set state = records.get(person.name, {}).get('state', 'unconfirmed') %}
+          <tr>
+            <th scope="row">{{ person.name }}</th>
+            <td>{{ person.user_id }}</td>
+            <td>{{ person.category }}</td>
+            <td><select name="person:{{ person.name }}" aria-label="Status for {{ person.name }}">
+              <option value=""{% if state == 'unconfirmed' %} selected{% endif %}>In/Out</option>
+              <option value="in"{% if state == 'present' %} selected{% endif %}>In</option>
+              <option value="out"{% if state == 'absent' %} selected{% endif %}>Out</option>
+            </select></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="credentials">
+      <label for="username">UserID</label><input id="username" name="username" autocomplete="username" required maxlength="64">
+      <label for="password">PASSWORD</label><input id="password" name="password" type="password" autocomplete="current-password" required maxlength="256">
+    </div>
+    <button type="submit">Update</button>
+  </form>
+  {% endif %}
+  <a href="./">Public schedule</a>
+</body>
+</html>

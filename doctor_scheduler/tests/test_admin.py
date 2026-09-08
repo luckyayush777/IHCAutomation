@@ -1,224 +1,222 @@
-"""Admin API tests. --preview serves isolated sample records on port 8082, without Google reads."""
-
-from datetime import datetime, timedelta
-import http.client
-from http.server import ThreadingHTTPServer
+from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
+import io
 import json
+import os
 from pathlib import Path
+import sqlite3
+import subprocess
 import sys
 import tempfile
-import threading
 import unittest
 from unittest.mock import patch
+from urllib.parse import urlencode
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from admin.service import AdminService, IST, SESSION_SECONDS
-from server import ScheduleHandler
+from personnel.handler import handle
+from personnel.store import UpdateError, authenticate, connect, initialize, read_day, save, set_user
+from build_health_centre import build
+from settings import Settings
+from test_roster import sample
+from test_static_build import NOW, Tags
 
-
-class FixtureRoster:
-    def __init__(self, now):
-        self.now = now
-
-    def snapshot(self):
-        return {
-            "doctors": [
-                {"name": "Dr. Sample A", "role": "Allopathy", "qual": "MBBS"},
-                {"name": "Dr. Sample B", "role": "Allopathy", "qual": "General Medicine"},
-                {"name": "Dr. Sample C", "role": "Homeopathy", "qual": "BHMS"},
-            ],
-            "schedule": {self.now().date().isoformat(): [
-                {"name": "Dr. Sample A", "start": 540, "end": 720},
-                {"name": "Dr. Sample B", "start": 840, "end": 1020},
-            ]},
-            "staff": [], "status": "ok", "updated_at": self.now().isoformat(),
-            "server_time": self.now().isoformat(), "refresh_seconds": 120,
-            "refreshing": False, "next_refresh_at": self.now().timestamp() + 120,
-        }
-
-
-class QuietHandler(ScheduleHandler):
-    def log_message(self, format, *args):
-        pass
-
-
-def make_server(path, port, now):
-    server = ThreadingHTTPServer(("127.0.0.1", port), QuietHandler)
-    origin = f"http://127.0.0.1:{server.server_port}"
-    server.store = FixtureRoster(now)
-    server.admin = AdminService(path, server.store, [origin], now=now)
-    return server
-
-
-class AdminTests(unittest.TestCase):
+class AttendanceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.directory = tempfile.TemporaryDirectory()
-        cls.database = Path(cls.directory.name) / "attendance.sqlite"
-        cls.clock = [datetime(2026, 9, 8, 10, 30, tzinfo=IST)]
-        cls.server = make_server(cls.database, 0, lambda: cls.clock[0])
-        cls.worker = threading.Thread(target=cls.server.serve_forever, daemon=True)
-        cls.worker.start()
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.server.shutdown()
-        cls.server.server_close()
-        cls.worker.join()
-        cls.directory.cleanup()
+        from personnel.store import hash_password
+        cls.encoded = hash_password("long test password")
 
     def setUp(self):
-        self.clock[0] = datetime(2026, 9, 8, 10, 30, tzinfo=IST)
-        self.server.admin.sessions.clear()
-        self.server.admin.attempts.clear()
-        with self.server.admin.connect() as db:
-            db.execute("DELETE FROM attendance")
-            db.execute("DELETE FROM attendance_history")
-        self.cookie = ""
-        self.csrf = ""
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        root = Path(self.temp.name)
+        self.settings = Settings(data_dir=root / "private", public_dir=root / "public", origin="https://ihc.example")
+        self.path = self.settings.database
+        build(self.settings, now=NOW, loader=sample)
+        with connect(self.path) as db:
+            db.execute("INSERT INTO staff_users VALUES (?,?,1)", ("staff", self.encoded))
 
-    def request(self, path, payload=None, headers=None, raw=None):
-        method = "POST" if payload is not None or raw is not None else "GET"
-        request_headers = {"Origin": f"http://127.0.0.1:{self.server.server_port}",
-                           "X-IHC-Request": "1", "Cookie": self.cookie, "X-CSRF-Token": self.csrf}
-        body = None
-        if method == "POST":
-            request_headers["Content-Type"] = "application/json"
-            body = raw if raw is not None else json.dumps(payload).encode()
-        request_headers.update(headers or {})
-        connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port, timeout=5)
-        try:
-            connection.request(method, path, body, request_headers)
-            response = connection.getresponse()
-            content = response.read()
-            result = json.loads(content) if response.getheader("Content-Type", "").startswith("application/json") else content.decode()
-            return response.status, result, dict(response.getheaders())
-        finally:
-            connection.close()
+    def submit(self, pairs=None, env=None, raw=None):
+        data = pairs if pairs is not None else {"username": "staff", "password": "long test password", "date": "2026-09-08", "person:Dr. Example": "in"}
+        body = raw if raw is not None else urlencode(data).encode()
+        environ = {"REQUEST_METHOD": "POST", "CONTENT_TYPE": "application/x-www-form-urlencoded", "CONTENT_LENGTH": str(len(body)), "HTTP_ORIGIN": self.settings.origin, "REMOTE_ADDR": "127.0.0.1"}
+        environ.update(env or {})
+        return handle(self.settings, environ, io.BytesIO(body), NOW)
 
-    def login(self):
-        status, result, headers = self.request("/api/admin/login", {"username": "user123", "password": "1234"})
+    def test_valid_and_invalid_credentials_and_hashes(self):
+        status, html = self.submit()
         self.assertEqual(status, 200)
-        self.cookie = headers["Set-Cookie"].split(";", 1)[0]
-        self.csrf = result["csrf_token"]
-        return headers
+        record = read_day(self.path, "2026-09-08")["Dr. Example"]
+        self.assertEqual((record["state"], record["updated_by"], record["updated_at"]), ("present", "staff", NOW.isoformat()))
+        for private in ("long test password", self.encoded):
+            self.assertNotIn(private, html)
+        self.assertIn('class="status-present">In', (self.settings.public_dir / "index.html").read_text(encoding="utf-8"))
+        status, error_html = self.submit({"username": "staff", "password": "bad", "date": "2026-09-08", "person:Dr. Example": "out"})
+        self.assertEqual(status, 401)
+        self.assertIn('value="in" selected', error_html)
+        self.assertEqual(read_day(self.path, "2026-09-08")["Dr. Example"]["state"], "present")
+        set_user(self.path, "second", "long test password")
+        with connect(self.path) as db:
+            rows = db.execute("SELECT password_hash FROM staff_users").fetchall()
+        self.assertNotEqual(rows[0][0], rows[1][0])
+        self.assertTrue(all(row[0].startswith("pbkdf2_sha256$600000$") for row in rows))
+        self.assertNotIn(b"long test password", self.path.read_bytes())
 
-    def update(self, **changes):
-        return {"date": self.clock[0].date().isoformat(), "doctor": "Dr. Sample A", "state": "present",
-                "note": "Arrived at reception", "revision": 0, **changes}
-
-    def test_protected_records_and_private_files(self):
-        self.assertEqual(self.request("/api/admin/attendance")[0], 401)
-        self.assertEqual(self.request("/api/admin/attendance", self.update())[0], 401)
-        for path in ["/storage/attendance.sqlite", "/admin/service.py", "/admin/__init__.py", "/logs/server.log"]:
-            self.assertEqual(self.request(path)[0], 404)
-
-    def test_login_cookie_csrf_and_logout(self):
-        headers = self.login()
-        self.assertIn("HttpOnly", headers["Set-Cookie"])
-        self.assertIn("SameSite=Strict", headers["Set-Cookie"])
-        self.assertEqual(self.request("/api/admin/session")[1]["authenticated"], True)
-        self.assertEqual(self.request("/api/admin/attendance", self.update(), {"X-CSRF-Token": "wrong"})[0], 403)
-        self.assertEqual(self.request("/api/admin/logout", {})[0], 200)
-        self.assertEqual(self.request("/api/admin/attendance")[0], 401)
-
-    def test_incorrect_login_and_throttle(self):
-        for _ in range(5):
-            self.assertEqual(self.request("/api/admin/login", {"username": "user123", "password": "bad"})[0], 401)
-        self.assertEqual(self.request("/api/admin/login", {"username": "user123", "password": "1234"})[0], 429)
-
-    def test_cross_site_and_bad_content_rejected(self):
-        self.assertEqual(self.request("/api/admin/login", {"username": "user123", "password": "1234"}, {"Origin": "https://evil.example"})[0], 403)
-        self.assertEqual(self.request("/api/admin/login", {}, {"Content-Type": "text/plain"})[0], 415)
-        self.assertEqual(self.request("/api/admin/login", raw=b"{" )[0], 400)
-        self.assertEqual(self.request("/api/admin/login", raw=b"a" * 9000)[0], 413)
-
-    def test_saved_attendance_is_separate_and_audited(self):
-        self.login()
-        public_before = self.request("/api/schedule")[1]
-        status, result, _ = self.request("/api/admin/attendance", self.update(note="<script>alert(1)</script>"))
+    def test_form_works_without_login_or_javascript(self):
+        status, html = handle(self.settings, {"REQUEST_METHOD": "GET"}, io.BytesIO(), NOW)
         self.assertEqual(status, 200)
-        record = result["doctors"][0]["presence"]
-        self.assertEqual(record["state"], "present")
-        self.assertEqual(record["updated_by"], "user123")
-        self.assertEqual(record["revision"], 1)
-        self.assertEqual(record["note"], "<script>alert(1)</script>")
-        public_after = self.request("/api/schedule")[1]
-        self.assertEqual(public_after["schedule"], public_before["schedule"])
-        self.assertEqual(public_after["doctors"], public_before["doctors"])
-        self.assertEqual(public_after["attendance"]["records"], [{
-            "name": "Dr. Sample A", "state": "present", "updated_at": self.clock[0].isoformat()}])
-        self.assertEqual(public_after["admin"], public_after["attendance"])
-        self.assertEqual(public_after["admin"]["schedule"], {})
-        for private in ["note", "updated_by", "revision", "user123", "<script>"]:
-            self.assertNotIn(private, json.dumps(public_after))
-        self.assertEqual(self.request("/api/admin/attendance", self.update(state="absent", revision=1))[0], 200)
-        with self.server.admin.connect() as db:
-            events = db.execute("SELECT previous_state, state FROM attendance_history ORDER BY id").fetchall()
-        self.assertEqual([tuple(event) for event in events], [("unconfirmed", "present"), ("present", "absent")])
+        tags = Tags(html).tags
+        self.assertTrue(any(tag == "form" and attrs.get("method") == "post" for tag, attrs in tags))
+        self.assertTrue(any(tag == "input" and attrs.get("type") == "password" and "value" not in attrs for tag, attrs in tags))
+        self.assertNotIn("script", [tag for tag, _ in tags])
+        self.assertNotIn("attendance", html.lower())
+        for header in ("IHC Personnel", "UserID", "Category", "Status"):
+            self.assertIn(f'>{header}</th>', html)
+        self.assertLess(html.index('</table>'), html.index('type="password"'))
+        self.assertIn('value="in"', html)
+        self.assertIn('value="out"', html)
+        self.assertNotIn('value="unconfirmed"', html)
 
-    def test_conflicting_edit_does_not_overwrite(self):
-        self.login()
-        self.assertEqual(self.request("/api/admin/attendance", self.update())[0], 200)
-        self.assertEqual(self.request("/api/admin/attendance", self.update(state="absent"))[0], 409)
-        self.assertEqual(self.request("/api/admin/attendance")[1]["doctors"][0]["presence"]["state"], "present")
+    def test_http_preview_exception_is_explicit_and_loopback_only(self):
+        from dataclasses import replace
+        settings = replace(self.settings, origin="http://127.0.0.1:8082")
+        environ = {"REQUEST_METHOD": "GET", "REMOTE_ADDR": "127.0.0.1"}
+        self.assertEqual(handle(settings, environ, io.BytesIO(), NOW)[0], 503)
+        self.assertEqual(handle(settings, environ, io.BytesIO(), NOW, local_preview=True)[0], 200)
+        environ["REMOTE_ADDR"] = "192.168.1.10"
+        self.assertEqual(handle(settings, environ, io.BytesIO(), NOW, local_preview=True)[0], 503)
 
-    def test_invalid_fields_doctor_and_note(self):
-        self.login()
-        for changes in [{"doctor": "Unknown"}, {"state": "yes"}, {"note": "x" * 301},
-                        {"revision": True}, {"updated_by": "another-user"}]:
-            self.assertEqual(self.request("/api/admin/attendance", self.update(**changes))[0], 400)
+    def test_reference_layout_includes_paramedics_and_batch_needs_valid_password(self):
+        cache = self.settings.data_dir / "roster.json"
+        data = json.loads(cache.read_text(encoding="utf-8"))
+        data["data"]["personnel"] = [
+            {"name": "Dr. Example", "user_id": "doctor-id", "category": "Doctor"},
+            {"name": "Nurse Example", "user_id": "nurse-id", "category": "Paramedic"},
+        ]
+        cache.write_text(json.dumps(data), encoding="utf-8")
+        status, html = handle(self.settings, {"REQUEST_METHOD": "GET"}, io.BytesIO(), NOW)
+        self.assertEqual(status, 200)
+        for value in ("Nurse Example", "doctor-id", "nurse-id", "Paramedic"):
+            self.assertIn(value, html)
+        fields = {"username": "staff", "password": "wrong", "date": "2026-09-08",
+                  "person:Dr. Example": "in", "person:Nurse Example": "out"}
+        before = (self.settings.public_dir / "index.html").read_bytes()
+        self.assertEqual(self.submit(fields)[0], 401)
+        self.assertEqual(read_day(self.path, "2026-09-08"), {})
+        self.assertEqual((self.settings.public_dir / "index.html").read_bytes(), before)
+        fields["password"] = "long test password"
+        self.assertEqual(self.submit(fields)[0], 200)
+        rows = read_day(self.path, "2026-09-08")
+        self.assertEqual(rows["Dr. Example"]["state"], "present")
+        self.assertEqual(rows["Nurse Example"]["state"], "absent")
+        public = (self.settings.public_dir / "index.html").read_text(encoding="utf-8")
+        self.assertIn("Nurse Example", public)
+        self.assertIn('class="status-absent">Out', public)
+        self.assertNotIn("nurse-id", public)
+        self.assertNotIn("attendance", public.lower())
 
-    def test_attendance_persists_and_expires_at_india_midnight(self):
-        self.login()
-        old = self.update()
-        self.assertEqual(self.request("/api/admin/attendance", old)[0], 200)
-        reopened = AdminService(self.database, self.server.store, [], now=lambda: self.clock[0])
-        self.assertEqual(reopened.today()["doctors"][0]["presence"]["state"], "present")
-        self.clock[0] += timedelta(days=1)
-        self.assertEqual(reopened.today()["doctors"][0]["presence"]["state"], "unconfirmed")
-        self.assertEqual(self.request("/api/admin/attendance", old)[0], 409)
-
-    def test_expired_session_is_rejected(self):
-        self.login()
+    def test_disabled_unknown_and_throttled_accounts(self):
+        with connect(self.path) as db:
+            db.execute("UPDATE staff_users SET enabled=0")
+        for username in ["staff", "unknown", "staff", "unknown", "staff"]:
+            with self.assertRaises(UpdateError) as caught:
+                authenticate(self.path, username, "long test password", "peer")
+            self.assertEqual(caught.exception.status, 401)
+        # A separate request/connection sees the persisted attempt limit.
+        with self.assertRaises(UpdateError) as caught:
+            authenticate(self.path, "staff", "long test password", "peer")
+        self.assertEqual(caught.exception.status, 429)
         import time
-        with patch("admin.service.time.time", return_value=time.time() + SESSION_SECONDS + 1):
-            self.assertEqual(self.request("/api/admin/attendance")[0], 401)
+        with patch("personnel.store.time.time", return_value=time.time() + 301):
+            with self.assertRaises(UpdateError) as caught:
+                authenticate(self.path, "unknown", "bad", "peer")
+            self.assertEqual(caught.exception.status, 401)
 
-    def test_public_attendance_resets_daily_and_filters_removed_doctors(self):
-        self.login()
-        self.request("/api/admin/attendance", self.update())
-        self.cookie = ""
-        self.assertEqual(len(self.request("/api/schedule")[1]["attendance"]["records"]), 1)
-        snapshot = self.server.store.snapshot()
-        snapshot["doctors"] = []
-        self.assertEqual(self.server.admin.public_attendance(snapshot)["records"], [])
-        self.clock[0] += timedelta(days=1)
-        attendance = self.request("/api/schedule")[1]["attendance"]
-        self.assertEqual(attendance["date"], self.clock[0].date().isoformat())
-        self.assertEqual(attendance["records"], [])
+    def test_malformed_forms_and_cross_origin_do_not_change_records(self):
+        base = [("username", "staff"), ("password", "long test password"), ("date", "2026-09-08")]
+        cases = [base + [("person:Unknown", "present")], base + [("person:Dr. Example", "maybe")],
+                 base + [("person:Dr. Example", "in"), ("person:Dr. Example", "out")],
+                 base + [("updated_by", "forged")], base + [("person:Dr. Example", "")]]
+        for pairs in cases:
+            with self.subTest(pairs=pairs):
+                self.assertEqual(self.submit(pairs)[0], 400)
+        for env, expected in [({"HTTP_ORIGIN": "https://evil.example"}, 403), ({"HTTP_ORIGIN": ""}, 403),
+                              ({"CONTENT_TYPE": "application/json"}, 415), ({"CONTENT_LENGTH": "90000"}, 413),
+                              ({"CONTENT_LENGTH": "no"}, 400), ({"CONTENT_LENGTH": "5000"}, 400),
+                              ({"QUERY_STRING": "password=secret"}, 400), ({"REQUEST_METHOD": "PUT"}, 405)]:
+            self.assertEqual(self.submit(env=env)[0], expected)
+        self.assertEqual(self.submit(raw=b"bad=%FF")[0], 400)
+        self.assertEqual(read_day(self.path, "2026-09-08"), {})
+        with connect(self.path) as db:
+            self.assertEqual(db.execute("SELECT count(*) FROM attendance_history").fetchone()[0], 0)
 
-    def test_attendance_failure_keeps_sheet_roster_available(self):
-        with patch.object(self.server.admin, "connect", side_effect=RuntimeError("private database detail")):
-            status, public, _ = self.request("/api/schedule")
+    def test_yesterday_does_not_carry_and_stale_form_is_rejected(self):
+        self.assertEqual(self.submit()[0], 200)
+        tomorrow = NOW + timedelta(days=1)
+        self.assertEqual(read_day(self.path, tomorrow.date().isoformat()), {})
+        with self.assertRaises(UpdateError) as caught:
+            save(self.path, "staff", "long test password", "peer", "2026-09-08", {"Dr. Example": "absent"}, {"Dr. Example"}, tomorrow)
+        self.assertEqual(caught.exception.status, 409)
+        self.assertEqual(read_day(self.path, "2026-09-08")["Dr. Example"]["state"], "present")
+
+    def test_simultaneous_repeated_submissions_are_atomic_and_audited(self):
+        def update(i):
+            save(self.path, "staff", "long test password", str(i), "2026-09-08",
+                 {"Dr. Example": "present" if i % 2 else "absent"}, {"Dr. Example"}, NOW)
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            list(pool.map(update, range(8)))
+        with connect(self.path) as db:
+            self.assertEqual(db.execute("PRAGMA integrity_check").fetchone()[0], "ok")
+            self.assertEqual(db.execute("SELECT count(*) FROM attendance").fetchone()[0], 1)
+            self.assertEqual(db.execute("SELECT revision FROM attendance").fetchone()[0], 8)
+            self.assertEqual(db.execute("SELECT count(*) FROM attendance_history").fetchone()[0], 8)
+
+    def test_failed_publication_retains_saved_attendance(self):
+        previous = (self.settings.public_dir / "index.html").read_bytes()
+        with self.assertLogs(level="ERROR"), patch("personnel.handler.build", side_effect=OSError("private disk details")):
+            status, html = self.submit()
         self.assertEqual(status, 200)
-        self.assertEqual(len(public["doctors"]), 3)
-        unavailable = {"status": "unavailable", "records": [], "schedule": {}}
-        self.assertEqual(public["attendance"], unavailable)
-        self.assertEqual(public["admin"], unavailable)
-        self.assertNotIn("private database detail", json.dumps(public))
+        self.assertIn("Status saved. Public page regeneration failed", html)
+        self.assertNotIn("private disk details", html)
+        self.assertEqual(read_day(self.path, "2026-09-08")["Dr. Example"]["state"], "present")
+        self.assertEqual((self.settings.public_dir / "index.html").read_bytes(), previous)
 
+    def test_existing_schema_records_survive_initialization(self):
+        self.submit()
+        initialize(self.path)
+        self.assertEqual(read_day(self.path, "2026-09-08")["Dr. Example"]["state"], "present")
+        with connect(self.path) as db:
+            self.assertEqual(db.execute("SELECT count(*) FROM attendance_history").fetchone()[0], 1)
+
+    def test_backup_cli_copies_accounts_and_attendance(self):
+        self.submit()
+        config = self.settings.data_dir / "config.json"
+        config.write_text(json.dumps({"data_dir": str(self.settings.data_dir), "public_dir": str(self.settings.public_dir)}), encoding="utf-8")
+        backup = self.settings.data_dir / "backup.sqlite"
+        command = [sys.executable, "-m", "personnel.users", "--config", str(config), "--backup", str(backup)]
+        result = subprocess.run(command, cwd=Path(__file__).resolve().parents[1], capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(read_day(backup, "2026-09-08")["Dr. Example"]["state"], "present")
+        with connect(backup) as db:
+            self.assertEqual(db.execute("SELECT password_hash FROM staff_users").fetchone()[0], self.encoded)
+        again = subprocess.run(command, cwd=Path(__file__).resolve().parents[1], capture_output=True)
+        self.assertNotEqual(again.returncode, 0)
+
+    def test_cgi_subprocess_headers_and_escaped_profiles(self):
+        cache = self.settings.data_dir / "roster.json"
+        value = json.loads(cache.read_text(encoding="utf-8"))
+        value["data"]["personnel"][0]["name"] = '<img src=x onerror="alert(1)">'
+        cache.write_text(json.dumps(value), encoding="utf-8")
+        config = self.settings.data_dir / "config.json"
+        config.write_text(json.dumps({"data_dir": str(self.settings.data_dir), "public_dir": str(self.settings.public_dir), "origin": self.settings.origin}), encoding="utf-8")
+        process = subprocess.run([sys.executable, "-m", "personnel.handler"], cwd=Path(__file__).resolve().parents[1],
+                                 env={**os.environ, "IHC_CONFIG": str(config), "REQUEST_METHOD": "GET"}, input=b"", capture_output=True)
+        self.assertEqual(process.returncode, 0, process.stderr)
+        output = process.stdout.decode()
+        self.assertTrue(output.startswith("Status: 200 OK"))
+        self.assertIn("Cache-Control: no-store", output)
+        self.assertIn("&lt;img", output)
+        self.assertNotIn("<img", output)
 
 if __name__ == "__main__":
-    if "--preview" in sys.argv:
-        with tempfile.TemporaryDirectory() as directory:
-            preview = make_server(Path(directory) / "attendance.sqlite", 8082, lambda: datetime.now(IST))
-            print("Isolated admin preview: http://127.0.0.1:8082/admin (sample data only)", flush=True)
-            try:
-                preview.serve_forever()
-            except KeyboardInterrupt:
-                pass
-            finally:
-                preview.server_close()
-    else:
-        unittest.main()
+    unittest.main()

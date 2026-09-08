@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ meta.title }}</title>
+
+  <style>
+    :root {
+      /* All visual colour decisions live here. */
+      --color-page: #ffffff;
+      --color-surface: #ffffff;
+      --color-text: #17324d;
+      --color-muted: #60788f;
+      --color-light: #e3edf4;
+      --color-blue: #0b5ca8;
+      --color-blue-light: #eaf5ff;
+      --color-green: #197a45;
+      --color-green-light: #edf8f1;
+      --color-gray: #bdc1c6;
+      --color-subtle: #fafafa;
+      --color-closed: #fdfdfd;
+      --color-danger: #b23a3a;
+      --color-footer: #dddddd;
+      --color-current-day: #d4a017;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--color-page);
+      color: var(--color-text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+        Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .container {
+      width: min(1140px, calc(100% - 32px));
+      margin-inline: auto;
+    }
+
+    /* Header */
+    header {
+      background: var(--color-surface);
+    }
+
+    .head {
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--color-text);
+      text-decoration: none;
+    }
+
+    .logo-badge {
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: var(--color-blue);
+      color: var(--color-surface);
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .brand-title {
+      color: var(--color-text);
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .tagline {
+      margin-left: 8px;
+      color: var(--color-muted);
+      font-size: 13px;
+    }
+
+    .meta-status {
+      color: var(--color-muted);
+      font-size: 13px;
+    }
+
+    .meta-status b {
+      color: var(--color-green);
+    }
+
+    /* Announcements */
+    .announcements {
+      padding: 10px 0;
+      background: var(--color-blue-light);
+      font-size: 13px;
+    }
+
+    .static-announcements {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .ticker-label {
+      color: var(--color-blue);
+      font-weight: 600;
+    }
+
+    .announcement-item {
+      color: var(--color-text);
+    }
+
+    /* Common section */
+    .section {
+      margin: 20px 0;
+      overflow: hidden;
+      background: var(--color-surface);
+      border-radius: 8px;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      gap: 16px;
+    }
+
+    .section-head h2 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .section-note {
+      color: var(--color-muted);
+      font-size: 12px;
+    }
+
+    /* Weekly schedule */
+    .schedule-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+      padding: 12px;
+    }
+
+    .day {
+      background: var(--color-surface);
+      border-radius: 6px;
+    }
+
+    .day.closed {
+      background: var(--color-closed);
+    }
+
+    .day-name {
+      padding: 8px 4px;
+      background: var(--color-light);
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    /* Python sets the "today" class. */
+    .day.today .day-name {
+      background: var(--color-current-day);
+      color: var(--color-surface);
+    }
+
+    .day.closed .day-name {
+      color: var(--color-muted);
+    }
+
+    .day-date {
+      margin-top: 2px;
+      color: var(--color-muted);
+      font-size: 11px;
+      font-weight: 400;
+    }
+
+    .day.today .day-date {
+      color: var(--color-surface);
+    }
+
+    .day-body {
+      min-height: 120px;
+      padding: 10px;
+      font-size: 12px;
+    }
+
+    .shift {
+      margin-bottom: 8px;
+      padding-left: 6px;
+    }
+
+    .shift strong {
+      display: block;
+      color: var(--color-text);
+      font-size: 12px;
+    }
+
+    .shift time {
+      color: var(--color-muted);
+      font-size: 11px;
+    }
+
+    .staff-count {
+      margin-top: 8px;
+      padding-top: 4px;
+      color: var(--color-muted);
+      font-size: 11px;
+    }
+
+    .closed-message {
+      margin-top: 25px;
+      color: var(--color-danger);
+      text-align: center;
+    }
+
+    /* Today's duty */
+    .today-panel {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      padding: 12px;
+    }
+
+    .subpanel {
+      padding: 14px;
+      background: var(--color-subtle);
+      border-radius: 6px;
+    }
+
+    .subpanel h3 {
+      margin: 0 0 12px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .people {
+      display: grid;
+      gap: 8px;
+    }
+
+    .person-current {
+      display: grid;
+      grid-template-columns: 56px 1fr;
+      align-items: center;
+      gap: 12px;
+      padding: 10px;
+      background: var(--color-surface);
+      border-radius: 6px;
+    }
+
+    .photo {
+      width: 56px;
+      height: 56px;
+      flex-shrink: 0;
+      display: block;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 50% 35%,
+          var(--color-gray) 0 18%, transparent 19%),
+        radial-gradient(ellipse at 50% 115%,
+          var(--color-gray) 0 42%, transparent 43%),
+        var(--color-light);
+    }
+
+    .name {
+      color: var(--color-text);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .role {
+      color: var(--color-blue);
+      font-size: 12px;
+    }
+
+    .qual,
+    .contact {
+      color: var(--color-muted);
+      font-size: 11px;
+    }
+
+    .contact {
+      margin-top: 2px;
+    }
+
+    .timing {
+      display: inline-block;
+      margin-top: 4px;
+      padding: 2px 6px;
+      background: var(--color-green-light);
+      color: var(--color-green);
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .empty-message {
+      margin: 0;
+      padding: 8px;
+      color: var(--color-muted);
+    }
+
+    /* Weekly schedules of current doctors */
+    .weekly-current {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+    }
+
+    .doctor-week {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      overflow: hidden;
+      background: var(--color-surface);
+      border-radius: 6px;
+    }
+
+    .doctor-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      background: var(--color-subtle);
+    }
+
+    .doctor-info .photo,
+    .card .photo {
+      width: 44px;
+      height: 44px;
+    }
+
+    .week-days {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+    }
+
+    .wday {
+      padding: 8px 4px;
+      text-align: center;
+      font-size: 11px;
+    }
+
+    .wday b {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--color-muted);
+      font-size: 10px;
+      text-transform: uppercase;
+    }
+
+    .wday.on {
+      background: var(--color-green-light);
+      color: var(--color-green);
+      font-weight: 500;
+    }
+
+    .wday.off {
+      color: var(--color-gray);
+    }
+
+    /* Directories */
+    .directory {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      padding: 12px;
+    }
+
+    .card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      background: var(--color-surface);
+      border-radius: 6px;
+    }
+
+    /* Footer */
+    .footer {
+      background: var(--color-footer);
+      color: var(--color-muted);
+      font-size: 13px;
+    }
+
+    .footer-inner {
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    @media (max-width: 900px) {
+      .schedule-grid {
+        grid-template-columns: repeat(4, 1fr);
+      }
+
+      .directory {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .doctor-week {
+        grid-template-columns: 190px 1fr;
+      }
+    }
+
+    @media (max-width: 650px) {
+      .schedule-grid,
+      .today-panel,
+      .directory,
+      .doctor-week {
+        grid-template-columns: 1fr;
+      }
+
+      .week-days {
+        grid-template-columns: repeat(7, minmax(48px, 1fr));
+        overflow-x: auto;
+      }
+
+      .section-head {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .footer-inner {
+        flex-direction: column;
+        gap: 6px;
+        padding: 12px 0;
+        text-align: center;
+      }
+    }
+    .head, .brand { flex-wrap: wrap; }
+    .head { padding-block: 12px; }
+    .today-panel { grid-template-columns: 1fr; }
+    .people { grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }
+    .day, .doctor-week, .card { min-width: 0; overflow-wrap: anywhere; }
+    .status-present { color: var(--color-green); }
+    .status-absent { color: var(--color-danger); }
+  </style>
+</head>
+
+<body>
+  <!-- Generated by build_health_centre.py. Edit liveihc-template.html, not this page. -->
+  <header><div class="container head">
+    <a class="brand" href="#"><span class="logo-badge">IHC</span>
+      <span class="brand-title">Institute Health Centre</span>
+      <span class="tagline">Care Today &bull; Healthier Tomorrows</span></a>
+    <a href="{{ update_url }}">Update personnel status</a>
+  </div></header>
+  <div class="announcements"><div class="container static-announcements">
+    <span>Roster checked: {{ meta.checked }}</span>
+    <span>Page generated: {{ meta.generated }}</span>
+    {% if meta.stale %}<strong>Roster updates are delayed. Showing the last saved roster.</strong>{% endif %}
+  </div></div>
+  <main class="container">
+    <section class="section" aria-labelledby="week-title">
+      <div class="section-head"><h2 id="week-title">Actual Schedule</h2>
+        <div class="section-note">{{ meta.week_start }} to {{ meta.week_end }} &bull; All times IST</div></div>
+      <div class="schedule-grid">
+        {% for day in week_grid %}
+        <div class="day {{ day.css_class }}" data-date="{{ day.date }}">
+          <div class="day-name">{{ day.day }}<div class="day-date">{{ day.date }}</div></div>
+          <div class="day-body">
+            {% for doctor in day.doctors %}
+            <div class="shift"><strong>{{ doctor.name }}</strong><span>{{ doctor.timing }}</span></div>
+            {% else %}
+            <p class="empty-message">{{ 'No doctors scheduled' if day.published else 'Roster not published' }}</p>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    <section class="section" aria-labelledby="today-title">
+      <div class="section-head"><h2 id="today-title">IHC personnel status &bull; {{ meta.today }} (IST)</h2>
+        <div class="section-note">Staff-reported status as of page generation. Reload for updates.</div></div>
+      <div class="today-panel"><div class="subpanel"><div class="people">
+        {% for doctor in people %}
+        <div class="person-current">
+          <span aria-hidden="true" class="photo"></span>
+          <div><div class="name">{{ doctor.name }}</div>
+            <div class="role">{{ doctor.role }} <span class="qual">{{ doctor.qual }}</span></div>
+            {% if doctor.timing %}<div class="timing">{{ doctor.timing }}</div>{% endif %}
+            <div class="status-{{ doctor.state }}">{{ {'present': 'In', 'absent': 'Out', 'unconfirmed': 'Not updated'}[doctor.state] }}</div>
+            {% if doctor.updated_at %}<small>Reported: {{ doctor.updated_at }}</small>{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div></div></div>
+    </section>
+    <section class="section" aria-labelledby="ideal-title">
+      <div class="section-head"><h2 id="ideal-title">Ideal Rotating Schedule</h2>
+        <div class="section-note">Standard rotation from Duty-List; dated changes appear above.</div></div>
+      <div class="weekly-current">
+        {% for doctor in ideal_doctors %}
+        <div class="doctor-week"><div class="doctor-info"><span aria-hidden="true" class="photo"></span>
+          <div><div class="name">{{ doctor.name }}</div><div class="role">{{ doctor.role }}</div><div class="qual">{{ doctor.qual }}</div></div></div>
+          <div class="week-days">{% for day in doctor.week %}
+            <div class="wday {{ 'on' if day.timing else 'off' }}"><b>{{ day.day }}</b>{{ day.timing or '—' }}</div>
+          {% endfor %}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    <section class="section" aria-labelledby="directory-title">
+      <div class="section-head"><h2 id="directory-title">Doctors ({{ all_doctors|length }})</h2></div>
+      <div class="directory">{% for doctor in all_doctors %}
+        <div class="card"><span aria-hidden="true" class="photo"></span>
+          <div><div class="name">{{ doctor.name }}</div><div class="role">{{ doctor.role }} &bull; {{ doctor.qual }}</div></div></div>
+      {% endfor %}</div>
+    </section>
+  </main>
+  <footer class="footer"><div class="container footer-inner"><div>Institute Health Centre</div>
+    <div>Status is for {{ meta.today }} only. Schedule and status may change.</div></div></footer>
+</body>
+</html>

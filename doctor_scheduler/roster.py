@@ -6,6 +6,7 @@ import re
 
 MONTH_TAB = re.compile(r"^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)-\d{4}$")
 DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 LEGACY_INFO_HEADERS = ("Medical Officer", "System", "Qualification")
 PERSONNEL_INFO_HEADERS = ("IHC Personnel", "Category", "System", "Qualification")
 DUTY_HEADERS = ("Medical Officer", "Day", "Schedule Begin", "Schedule End")
@@ -36,7 +37,7 @@ def info_columns(info):
         raise ValueError("The Info sheet is empty")
     headers = [str(value).strip() for value in info[0]]
     if tuple(headers[:3]) == LEGACY_INFO_HEADERS:
-        return {"name": 0, "category": None, "role": 1, "qual": 2}
+        return {"name": 0, "category": None, "role": 1, "qual": 2, "user_id": None}
     missing = [header for header in PERSONNEL_INFO_HEADERS if header not in headers]
     if missing:
         raise ValueError(f"Info headers are missing: {', '.join(missing)}")
@@ -45,6 +46,7 @@ def info_columns(info):
         "category": headers.index("Category"),
         "role": headers.index("System"),
         "qual": headers.index("Qualification"),
+        "user_id": headers.index("UserID") if "UserID" in headers else None,
     }
 
 
@@ -92,6 +94,15 @@ def normalize_ideal_schedule(rows, profiles):
     return ideal
 
 
+def unique_people(pairs):
+    people = {}
+    for name, shifts in pairs:
+        if name in people:
+            raise ValueError("Duplicate doctor in dated schedule")
+        people[name] = shifts
+    return people
+
+
 def normalize(info, monthly, duty_rows=None):
     columns = info_columns(info)
 
@@ -99,11 +110,18 @@ def normalize(info, monthly, duty_rows=None):
         return str(row[column]).strip() if column is not None and column < len(row) else ""
 
     profiles = {}
+    personnel = []
+    personnel_names = set()
     for row in info[1:]:
         name = value(row, columns["name"])
         if not name:
             continue
         category = value(row, columns["category"])
+        if name in personnel_names:
+            raise ValueError("Duplicate IHC personnel in Info")
+        personnel_names.add(name)
+        personnel.append({"name": name, "user_id": value(row, columns["user_id"]),
+                          "category": category if columns["category"] is not None else "Doctor"})
         if columns["category"] is not None and category.casefold() != "doctor":
             continue
         if name in profiles:
@@ -126,12 +144,12 @@ def normalize(info, monthly, duty_rows=None):
             if len(row) < 3 or not row[2]:
                 raise ValueError(f"{title}: incomplete dated schedule")
             day = date.fromisoformat(str(row[0]))
-            if day.strftime("%b-%Y") != title or DAYS[day.weekday()] != row[1]:
+            if f"{MONTHS[day.month - 1]}-{day.year}" != title or DAYS[day.weekday()] != row[1]:
                 raise ValueError(f"{title}: date/day mismatch")
             key = day.isoformat()
             if key in schedule:
                 raise ValueError("Duplicate roster date")
-            people = json.loads(row[2])
+            people = json.loads(row[2], object_pairs_hook=unique_people)
             if not isinstance(people, dict):
                 raise ValueError("Schedule must be a JSON object")
             shifts = []
@@ -147,6 +165,7 @@ def normalize(info, monthly, duty_rows=None):
         raise ValueError("No doctor profiles or dated rosters found")
     return {
         "doctors": sorted(profiles.values(), key=lambda doctor: doctor["name"]),
+        "personnel": personnel,
         "schedule": schedule,
         "ideal_schedule": normalize_ideal_schedule(duty_rows, profiles),
     }
@@ -165,7 +184,8 @@ def fetch_roster(client):
     titles = ["Info", "Duty-List", *months]
     # Other tabs and helper columns never become part of the public API payload.
     # Read every Info header so personnel columns may move. normalize() selects
-    # only public doctor fields; user IDs, contacts and helper columns stay private.
+    # public doctor fields plus the form's personnel directory. Contacts and
+    # unrelated helper columns are discarded; UserID is only shown in the form.
     data = {}
     for title in titles:
         grids = tabs[title].get("data", [])

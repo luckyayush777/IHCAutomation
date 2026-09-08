@@ -1,19 +1,15 @@
 """From the repository root: python -m unittest discover -s doctor_scheduler/tests."""
 
-from datetime import datetime, timezone
-import io
 import json
 from pathlib import Path
 import sys
-import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from roster import fetch_roster, normalize, parse_shift
-from server import PUBLIC_FILES, REFRESH_SECONDS, RosterStore, ScheduleHandler
-from sheets_client import ReadCooldown, ReadLimiter, SheetsClient
+from sheets_client import SheetsClient
 
 INFO = [["Medical Officer", "System", "Qualification"], ["Dr. Example", "Allopathy", "MBBS"]]
 PERSONNEL_INFO = [
@@ -44,26 +40,29 @@ def sample():
 
 
 class RosterTests(unittest.TestCase):
-    def test_one_request_and_cooldown_survive_new_client_and_failure(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "reads.sqlite"
-            client = object.__new__(SheetsClient)
-            client.base_url = "https://sheets.googleapis.com/v4/spreadsheets/test"
-            client.limiter = ReadLimiter(path)
-            client.session = Mock()
-            client.session.get.side_effect = RuntimeError("network down")
-            with patch("sheets_client.time.time", return_value=1000):
-                with self.assertRaises(RuntimeError):
-                    client.read_workbook()
-            client.limiter = ReadLimiter(path)
-            with patch("sheets_client.time.time", return_value=1119):
-                with self.assertRaises(ReadCooldown):
-                    client.read_workbook()
-            self.assertEqual(client.session.get.call_count, 1)
-            with patch("sheets_client.time.time", return_value=1120):
-                with self.assertRaises(RuntimeError):
-                    client.read_workbook()
-            self.assertEqual(client.session.get.call_count, 2)
+    def test_duplicate_names_and_month_date_mismatches_fail(self):
+        for row in [["2026-09-08", "Tue", '{"Dr. Example":["0600-1200"],"Dr. Example":[]}'],
+                    ["2026-10-08", "Thu", '{}']]:
+            with self.subTest(row=row), self.assertRaises(ValueError):
+                normalize(INFO, {"Sep-2026": month(row)})
+
+    def test_adjacent_month_tabs_keep_exact_dates(self):
+        data = normalize(INFO, {
+            "Sep-2026": month(["2026-09-30", "Wed", '{"Dr. Example":["2100-2400"]}']),
+            "Oct-2026": month(["2026-10-01", "Thu", '{"Dr. Example":["0000-0530"]}']),
+        })
+        self.assertEqual(list(data["schedule"]), ["2026-09-30", "2026-10-01"])
+        self.assertEqual(data["schedule"]["2026-10-01"][0]["start"], 0)
+
+    def test_sheets_client_uses_one_bounded_read_only_request(self):
+        client = object.__new__(SheetsClient)
+        client.base_url = "https://sheets.googleapis.com/v4/spreadsheets/test"
+        client.session = Mock()
+        client.session.get.return_value.json.return_value = {"sheets": []}
+        self.assertEqual(client.read_workbook(), {"sheets": []})
+        client.session.get.assert_called_once()
+        self.assertEqual(client.session.get.call_args.kwargs["timeout"], 20)
+        self.assertFalse(client.session.get.call_args.kwargs["allow_redirects"])
 
     def test_workbook_read_includes_profiles_and_months_in_one_call(self):
         def grid(title, rows):
@@ -95,6 +94,11 @@ class RosterTests(unittest.TestCase):
         self.assertEqual(data["doctors"], INFO_TO_DOCTORS)
         self.assertNotIn("user_id", data["doctors"][0])
         self.assertNotIn("contact", data["doctors"][0])
+        self.assertEqual(data["personnel"], [
+            {"name": "Dr. Example", "user_id": "doctor-id", "category": "Doctor"},
+            {"name": "Nurse Example", "user_id": "nurse-id", "category": "Staff"},
+        ])
+        self.assertNotIn("private-number", json.dumps(data))
 
     def test_new_personnel_columns_are_resolved_by_header(self):
         info = [
@@ -136,76 +140,6 @@ class RosterTests(unittest.TestCase):
             with self.subTest(row=row), self.assertRaises(ValueError):
                 normalize(INFO, {"Sep-2026": month(row)})
 
-    def test_last_success_survives_failure_and_restart_then_recovers(self):
-        with tempfile.TemporaryDirectory() as directory:
-            cache = Path(directory) / "roster.json"
-            loader = Mock(return_value=sample())
-            store = RosterStore(loader, cache)
-            self.assertEqual(store.snapshot()["status"], "loading")
-            store.refresh()
-            self.assertEqual(store.snapshot()["status"], "ok")
-            saved_at = store.updated_at
-            loader.side_effect = RuntimeError("offline")
-            store.refresh()
-            self.assertEqual(store.snapshot()["status"], "stale")
-            self.assertEqual(store.updated_at, saved_at)
-            self.assertEqual(store.data["doctors"], INFO_TO_DOCTORS)
-            restarted = RosterStore(loader, cache)
-            self.assertEqual(restarted.snapshot()["status"], "stale")
-            loader.side_effect = None
-            restarted.refresh()
-            self.assertEqual(restarted.snapshot()["status"], "ok")
-
-    def test_initial_failure_returns_unavailable(self):
-        store = RosterStore(Mock(side_effect=RuntimeError("offline")))
-        store.refresh()
-        self.assertEqual(store.snapshot()["status"], "unavailable")
-        self.assertNotIn("doctors", store.snapshot())
-
-    def test_refresh_is_shared_and_worker_waits_two_minutes(self):
-        loader = Mock(return_value=sample())
-        store = RosterStore(loader)
-        stop = Mock()
-        stop.is_set.side_effect = [False, True]
-        with patch("server.time.time", return_value=1000):
-            store.run(stop)
-            for _ in range(10):
-                store.snapshot()
-        self.assertEqual(loader.call_count, 1)
-        stop.wait.assert_called_once_with(REFRESH_SECONDS)
-        self.assertEqual(REFRESH_SECONDS, 120)
-
-    def test_week_uses_india_date_across_month_boundary(self):
-        class FixedTime(datetime):
-            @classmethod
-            def now(cls, tz=None):
-                return datetime(2026, 9, 30, 19, 0, tzinfo=timezone.utc).astimezone(tz)
-        store = RosterStore(Mock())
-        store.data = {"doctors": [], "schedule": {"2026-09-28": [], "2026-10-01": [], "2026-10-04": [], "2026-10-05": []}}
-        with patch("server.datetime", FixedTime):
-            snapshot = store.snapshot()
-        self.assertEqual(list(snapshot["schedule"]), ["2026-09-28", "2026-10-01", "2026-10-04"])
-        self.assertEqual(snapshot["staff"], [])
-
-    def test_http_never_serves_credentials_sources_or_directory_listings(self):
-        for path in ["/keys/ihcautomation-ab8088bef327.json", "/keys/", "/.cache/roster.json", "/server.py", "/../.env", "/%2e%2e/.env", "/new_design/index.html", "/src/index.html", "/app.js", "/schedule.js"]:
-            handler = object.__new__(ScheduleHandler)
-            handler.path = path
-            handler.wfile = io.BytesIO()
-            handler.send_response = Mock()
-            handler.send_header = Mock()
-            handler.end_headers = Mock()
-            handler.respond()
-            handler.send_response.assert_called_once_with(404)
-            self.assertEqual(handler.wfile.getvalue(), b"Not found")
-        self.assertNotIn("/keys", PUBLIC_FILES)
-
-    def test_public_page_assets_are_explicitly_exposed_but_source_templates_are_private(self):
-        self.assertEqual(PUBLIC_FILES["/src/styles.css"][0], "src/styles.css")
-        self.assertEqual(PUBLIC_FILES["/src/app.js"][0], "src/app.js")
-        self.assertEqual(PUBLIC_FILES["/src/schedule.js"][0], "src/schedule.js")
-        self.assertNotIn("/src/index.html", PUBLIC_FILES)
-        self.assertNotIn("/src/liveihc-template.html", PUBLIC_FILES)
 
 
 INFO_TO_DOCTORS = [{"name": "Dr. Example", "role": "Allopathy", "qual": "MBBS"}]

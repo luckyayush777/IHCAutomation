@@ -1,0 +1,8 @@
+{
+  "data_dir": "/home/website/ihc-private",
+  "public_dir": "/home/website/html/ihc",
+  "credentials": "/etc/ihc/google-service-account.json",
+  "spreadsheet_id": "1ly7oTO9hWSTxfOr1di7H7LMHRgZutOsmfdxJQQhj-KA",
+  "update_url": "/ihc/personnel.cgi",
+  "origin": "https://REPLACE-WITH-INSTITUTE-HOST"
+}

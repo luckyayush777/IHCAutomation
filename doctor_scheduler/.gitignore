@@ -3,3 +3,5 @@ __pycache__/
 preview-*.png
 preview-*.log
 storage/
+public/
+config.json
