@@ -1,12 +1,15 @@
-"""Run: .venv/Scripts/python -m unittest discover -s doctor_scheduler -p 'test_*.py'."""
+"""From the repository root: python -m unittest discover -s doctor_scheduler/tests."""
 
 from datetime import datetime, timezone
 import io
 import json
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from roster import fetch_roster, normalize, parse_shift
 from server import PUBLIC_FILES, REFRESH_SECONDS, RosterStore, ScheduleHandler

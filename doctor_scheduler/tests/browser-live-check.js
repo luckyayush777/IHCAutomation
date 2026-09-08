@@ -74,7 +74,7 @@ try {
   await waitFor("document.querySelectorAll('#doctors .card').length === 8");
   assert.equal(await evaluate("document.querySelectorAll('#weekly .day').length"), 7);
   assert.equal(await evaluate("document.querySelectorAll('#staff .card').length"), 0);
-  await mkdir(new URL('.cache/', import.meta.url), { recursive: true });
+  await mkdir(new URL('../.cache/', import.meta.url), { recursive: true });
   for (const width of [1440, 1024, 768, 650, 390, 320]) {
     await command('Emulation.setDeviceMetricsOverride', {
       width,
@@ -95,7 +95,7 @@ try {
         captureBeyondViewport: true,
       });
       await writeFile(
-        new URL(`.cache/live-${width}.png`, import.meta.url),
+        new URL(`../.cache/live-${width}.png`, import.meta.url),
         Buffer.from(screenshot.data, 'base64'),
       );
     }

@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import logging
+from logging.handlers import RotatingFileHandler
 import os
 import threading
 import time
@@ -20,7 +21,6 @@ PUBLIC_FILES = {
     "/styles.css": ("styles.css", "text/css; charset=utf-8"),
     "/app.js": ("app.js", "text/javascript; charset=utf-8"),
     "/schedule.js": ("schedule.js", "text/javascript; charset=utf-8"),
-    "/assets/portrait.svg": ("assets/portrait.svg", "image/svg+xml"),
 }
 
 
@@ -95,6 +95,9 @@ class RosterStore:
 
 
 class ScheduleHandler(BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        logging.info("%s %r", self.address_string(), format % args)
+
     def do_GET(self):
         self.respond()
 
@@ -130,7 +133,17 @@ def main():
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8080")))
     args = parser.parse_args()
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
+    log_dir = ROOT / "logs"
+    log_dir.mkdir(exist_ok=True)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(message)s",
+        handlers=[
+            RotatingFileHandler(log_dir / "server.log", maxBytes=2_000_000,
+                                backupCount=3, encoding="utf-8"),
+            logging.StreamHandler(),
+        ],
+    )
     client = SheetsClient()
     store = RosterStore(lambda: fetch_roster(client), ROOT / ".cache" / "roster.json")
     server = ThreadingHTTPServer((args.host, args.port), ScheduleHandler)
@@ -138,7 +151,7 @@ def main():
     stop = threading.Event()
     worker = threading.Thread(target=store.run, args=(stop,), daemon=True)
     worker.start()
-    print(f"IHC schedule: http://{args.host}:{args.port} (Google Sheets refresh: 120 seconds)", flush=True)
+    logging.info("IHC schedule: http://%s:%s (Google Sheets refresh: 120 seconds)", args.host, args.port)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

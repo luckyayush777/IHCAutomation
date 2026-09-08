@@ -37,6 +37,8 @@ directly cannot load the data. Add `--host 0.0.0.0` for access from the local ne
 - `server.py`: serves an explicit allowlist of public files and `/api/schedule`.
   Keys, Python sources, caches, and directory listings cannot be downloaded.
 - `.cache/`: ignored local snapshot and SQLite read-attempt timestamp.
+- `logs/`: ignored runtime logs. `server.log` rotates at 2 MB, retaining up to
+  three older files. Logs also appear in the terminal or hosting log viewer.
 
 ## Exactly one Sheets read per two-minute interval
 
@@ -127,23 +129,26 @@ References: [Render free service limits](https://render.com/docs/free),
 ## Verification
 
 ```powershell
-doctor_scheduler/.venv/Scripts/python.exe -m unittest discover -s doctor_scheduler -p 'test_*.py' -v
-node --test doctor_scheduler/schedule.test.js
+doctor_scheduler/.venv/Scripts/python.exe -m unittest discover -s doctor_scheduler/tests -p 'test_*.py' -v
+node --test doctor_scheduler/tests/schedule.test.js
 ```
 
-`browser-live-check.js` checks the live page on port 8081 using a dedicated
+All scheduler tests are in `tests/`. `tests/browser-live-check.js` checks the live page on port 8081 using a dedicated
 headless Chrome instance with debugging port 9223. It checks six screen widths,
 cache refreshes, offline recovery, empty/unpublished schedules, and blocked
 private files. It uses mocked browser responses to simulate changes, without
 editing the spreadsheet or causing extra Google reads. Screenshots go in `.cache/`.
 It closes its dedicated Chrome instance after completion.
 
-## Professor's source files and earlier prototype
+With the server and dedicated Chrome instance running:
 
-`new_design/liveihc-template.html` is the original Jinja2 layout;
-`new_design/build_health_centre.py` fills it using hardcoded sample data and
-produces `new_design/index.html`. These supplied files remain as references.
-The live website no longer uses that static generation step.
+```powershell
+node doctor_scheduler/tests/browser-live-check.js
+```
 
-The previous CSV importer, sample data, and `browser-check.js` remain historical
-prototype files. That old browser check does not apply to the live design.
+## Design references
+
+`new_design/` preserves the supplied HTML designs and reference assets. These
+files are reference material; the running website uses the top-level HTML/CSS.
+The obsolete static generator, Excel/CSV prototype, sample profiles, unused
+portrait asset, and prototype-only tests have been removed.
