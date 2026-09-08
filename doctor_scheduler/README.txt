@@ -202,6 +202,10 @@ Edit these when needed:
   liveihc-template.html
     Public layout, wording and CSS. Preserve Jinja substitutions,
     escaping, loops and conditional logic.
+    The announcement ticker currently uses four sample notices defined
+    in this template and labelled Sample notices on the page. Its final
+    data source is not connected yet. CSS provides scrolling and a Pause
+    control; reduced-motion preferences show static notices instead.
 
   personnel/form.html
     Staff form layout and wording. Preserve POST, input names and values.

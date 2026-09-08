@@ -102,20 +102,58 @@
       font-size: 13px;
     }
 
-    .static-announcements {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 16px;
-    }
-
     .ticker-label {
       color: var(--color-blue);
       font-weight: 600;
     }
 
-    .announcement-item {
-      color: var(--color-text);
+    .announcement-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sample-badge {
+      margin-left: 6px;
+      padding: 2px 6px;
+      background: var(--color-surface);
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 400;
+    }
+
+    #pause-announcements { margin-left: 12px; }
+    .ticker-pause { cursor: pointer; }
+    .ticker-window { flex: 1 1 280px; min-width: 0; overflow: hidden; }
+    .ticker-window:focus-visible { outline: 2px solid var(--color-blue); outline-offset: 2px; }
+    .ticker-track {
+      display: flex;
+      width: max-content;
+      animation: announcement-scroll 40s linear infinite;
+    }
+    .ticker-group { display: flex; gap: 28px; padding-right: 28px; }
+    .announcement-item { color: var(--color-text); white-space: nowrap; }
+    .announcement-item::before { content: "\2022"; margin-right: 10px; color: var(--color-blue); }
+    #pause-announcements:checked ~ .ticker-window .ticker-track,
+    .ticker-window:hover .ticker-track,
+    .ticker-window:focus .ticker-track { animation-play-state: paused; }
+    .page-freshness { display: flex; flex-wrap: wrap; gap: 8px 20px; padding-block: 8px; color: var(--color-muted); font-size: 12px; }
+
+    @keyframes announcement-scroll {
+      to { transform: translateX(-50%); }
+    }
+
+    @media (max-width: 650px) {
+      .ticker-window { flex-basis: 100%; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .ticker-track { animation: none; width: auto; }
+      .ticker-group { flex-wrap: wrap; gap: 8px 20px; padding-right: 0; }
+      .ticker-group[aria-hidden="true"] { display: none; }
+      .announcement-item { white-space: normal; }
+      #pause-announcements, .ticker-pause { display: none; }
     }
 
     /* Common section */
@@ -460,11 +498,34 @@
       <span class="tagline">Care Today &bull; Healthier Tomorrows</span></a>
     <a href="{{ update_url }}">Update personnel status</a>
   </div></header>
-  <div class="announcements"><div class="container static-announcements">
+  {# Sample copy for demonstration. Replace with the agreed announcement source later. #}
+  {% set announcements = [
+    "Health awareness session: details to be announced.",
+    "Registration reminder: please keep your institute ID ready.",
+    "Seasonal health camp: dates to be announced.",
+    "Pharmacy notice: updated timings will appear here."
+  ] %}
+  <section class="announcements" aria-labelledby="announcements-title">
+    <div class="container announcement-bar">
+      <div class="ticker-label" id="announcements-title">Announcements <span class="sample-badge">Sample notices</span></div>
+      <input type="checkbox" id="pause-announcements">
+      <label class="ticker-pause" for="pause-announcements">Pause</label>
+      <div class="ticker-window" tabindex="0" aria-label="Sample announcements; focus to pause scrolling">
+        <div class="ticker-track">
+          {% for copy in range(2) %}
+          <div class="ticker-group"{% if copy %} aria-hidden="true"{% endif %}>
+            {% for announcement in announcements %}<span class="announcement-item">{{ announcement }}</span>{% endfor %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </section>
+  <div class="container page-freshness">
     <span>Roster checked: {{ meta.checked }}</span>
     <span>Page generated: {{ meta.generated }}</span>
     {% if meta.stale %}<strong>Roster updates are delayed. Showing the last saved roster.</strong>{% endif %}
-  </div></div>
+  </div>
   <main class="container">
     <section class="section" aria-labelledby="week-title">
       <div class="section-head"><h2 id="week-title">Actual Schedule</h2>

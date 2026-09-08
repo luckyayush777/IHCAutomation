@@ -28,6 +28,11 @@ date, roster-read time, and generation time in India Standard Time (UTC+05:30).
 An already open page stays a dated snapshot until reloaded. Scheduled duty does
 not imply confirmed presence. Status never carries into the next date.
 
+The announcement ticker currently displays clearly labelled sample notices
+defined in `liveihc-template.html`; its final data source is still to be agreed.
+Scrolling and the Pause control use CSS, and reduced-motion preferences show
+static notices. The roster and generation timestamps remain below the ticker.
+
 ## Source data and the template
 
 The configured workbook is the existing shared IHC Google Sheet. Share it with
