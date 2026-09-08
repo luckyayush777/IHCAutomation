@@ -23,16 +23,16 @@ def parse_form(raw, names):
     values = dict(pairs)
     if len(values) != len(pairs) or not {"date", "username", "password"} <= values.keys():
         raise UpdateError(400, "Missing or duplicate form fields.")
-    updates = {}
+    # Browsers omit unchecked checkboxes: every omitted person is Out.
+    updates = dict.fromkeys(names, "absent")
     for key, value in values.items():
         if key in {"date", "username", "password"}:
             continue
         if not key.startswith("person:") or key[7:] not in names:
             raise UpdateError(400, "Unknown status field.")
-        if value:
-            if value not in {"in", "out"}:
-                raise UpdateError(400, "Choose In or Out.")
-            updates[key[7:]] = {"in": "present", "out": "absent"}[value]
+        if value != "in":
+            raise UpdateError(400, "Invalid status checkbox value.")
+        updates[key[7:]] = "present"
     return values, updates
 
 
@@ -88,8 +88,7 @@ def handle(settings, environ, stream, now=None, *, local_preview=False):
         logging.error("Status request failed (%s)", type(error).__name__)
         status, message = 503, "Status is temporarily unavailable. Contact the health centre administrator."
     html = template_environment().get_template("personnel/form.html").render(
-        day=day, doctors=doctors, records=records, message=message, action=settings.update_url,
-        labels={"present": "In", "absent": "Out", "unconfirmed": "In/Out"})
+        day=day, doctors=doctors, records=records, message=message, action=settings.update_url)
     return status, html
 
 

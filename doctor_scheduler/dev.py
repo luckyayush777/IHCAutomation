@@ -4,13 +4,25 @@ import argparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import logging
+import os
 import secrets
+import socket
 from urllib.parse import urlsplit
 
 from build_health_centre import atomic_write, build, read_cache
 from personnel.handler import handle
 from personnel.store import set_user
 from settings import ROOT, Settings, load_settings
+
+
+class PreviewServer(ThreadingHTTPServer):
+    # Windows address reuse can let a second preview bind the same port.
+    allow_reuse_address = os.name != "nt"
+
+    def server_bind(self):
+        if os.name == "nt":
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
 
 class PreviewHandler(BaseHTTPRequestHandler):
@@ -23,6 +35,13 @@ class PreviewHandler(BaseHTTPRequestHandler):
         settings = self.server.settings
         if self.headers.get("Host") != urlsplit(settings.origin).netloc:
             self.send_error(403, "Open the printed 127.0.0.1 URL")
+            return
+        if self.command == "GET" and url.path == "/ihc":
+            self.send_response(308)
+            self.send_header("Location", "/ihc/")
+            self.send_header("Content-Length", "0")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
             return
         if url.path == settings.update_url:
             if self.headers.get("Transfer-Encoding") or (
@@ -77,7 +96,10 @@ def main():
     settings = Settings(data_dir=preview / "private", public_dir=preview / "public",
                         spreadsheet_id=source.spreadsheet_id, origin=f"http://127.0.0.1:{args.port}")
     # Bind first so a second launch cannot reset the active preview's account.
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), PreviewHandler)
+    try:
+        server = PreviewServer(("127.0.0.1", args.port), PreviewHandler)
+    except OSError as error:
+        parser.error(f"Cannot start preview on port {args.port}: {error}. Stop the existing preview or choose --port.")
     server.settings = settings
     try:
         atomic_write(settings.data_dir / "roster.json", json.dumps(cached))

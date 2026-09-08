@@ -72,9 +72,12 @@ prompted privately:
 ```
 
 Staff open `/ihc/personnel.cgi`: the four-column table matches
-`new_design/references/form_ref.xlsx`, including doctors and paramedics. Select
-In/Out, enter UserID/password underneath, and press Update. Invalid credentials
-leave all data unchanged. Rows still showing In/Out are not written. Successful saves regenerate
+`new_design/references/form_ref.xlsx`, including doctors and paramedics. Status
+now uses checkboxes: checked means In, unchecked means Out. Saved In values are
+checked; personnel without a saved value start unchecked. Enter UserID/password
+underneath and press Update to save every listed person's status. Unchecking a
+previously In person saves Out. Invalid credentials leave all data unchanged.
+Reload before editing to avoid overwriting another operator's newer values. Successful saves regenerate
 the public file immediately; existing public tabs need a reload. If regeneration
 fails, the save persists and the response says publication is pending.
 
@@ -109,9 +112,12 @@ account disable/reset, online SQLite backup and restore.
 
 ## Verification
 
-- 34 Python tests: parsing, profiles, IST/2400/month boundaries, missing dates,
+- 36 Python tests: parsing, profiles, IST/2400/month boundaries, missing dates,
   CGI form/protocol, valid/invalid credentials, hashing, malformed requests,
   throttling, concurrent SQLite writes, backup, escaping and atomic publication.
+- Loopback HTTP tests cover public/form navigation, checkbox saves across reloads,
+  and prevention of duplicate listeners. Include dev.py and tests/test_dev.py
+  in the source/test package; dev.py is not the production web service.
 - Live Google Sheets read produced eight doctor profiles and 15 form rows
   (eight doctors and seven paramedics).
 - Chrome: six widths (320 to 1440), no page scripts, no horizontal overflow;

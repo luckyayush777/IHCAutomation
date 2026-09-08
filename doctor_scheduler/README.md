@@ -49,7 +49,9 @@ Category / System / Qualification` layout. The schedule uses Category Doctor. Th
 Shifts use minutes, including `2400` as the end of a day. Overnight shifts must
 be split at midnight. Profile names must match exactly; unknown names, duplicate
 profiles, invalid dates and invalid shifts fail the build instead of hiding data.
-The displayed Monday-Sunday week may span two monthly tabs. Sunday follows the
+The first table shows today in IST followed by the next six dates, advancing
+on each day's generation without including past dates. This rolling seven-day
+window may span two monthly tabs. Sunday follows the
 actual roster. No doctor count limit, invented staff, or fake contact data is used.
 
 `liveihc-template.html` is the editable source template requested by the professor.
@@ -116,7 +118,7 @@ doctor_scheduler/.venv/Scripts/python.exe doctor_scheduler/dev.py
 ```
 
 Open http://127.0.0.1:8082/ihc/personnel.cgi. The terminal prints UserID `tester`
-and a newly generated password. Select In/Out, enter those credentials, and press
+and a newly generated password. Tick for In or leave unticked for Out, enter those credentials, and press
 Update. Open http://127.0.0.1:8082/ihc/ and reload to see the result. A wrong password
 returns an error and saves nothing. Keep the terminal open; Ctrl+C stops it.
 Use `--port 8083` if needed. Restarting prints a new password.
@@ -126,10 +128,14 @@ and generator. It starts from the last generated roster cache and writes only to
 `storage/browser-preview/`, leaving the main database/page unchanged. Status edits
 persist in that preview directory across restarts. To refresh the roster, run the
 normal builder and restart the preview. No test suite or npm command is required.
+Restart the preview after Python code changes so its handler and templates stay
+in sync. Only one preview may bind a given port; a duplicate launch is rejected
+before it can reset the active tester password. `/ihc` redirects to `/ihc/`.
 
 `dev.py` binds only to 127.0.0.1. Its explicit local HTTP allowance is not enabled
-by the production CGI. Deploy the Apache CGI files described below; do not deploy
-or run `dev.py` on the institute server. There are no new dependencies.
+by the production CGI. Deploy the Apache CGI files described below; do not run
+`dev.py` as the institute's web service. It may be included with the source for
+the loopback HTTP tests. There are no new dependencies.
 
 To view only the static public artifact instead:
 
@@ -166,6 +172,7 @@ The following is the precise proposed layout, not a claim that it is installed:
 /home/website/html/ihc/index.html          generated public page
 /home/website/html/ihc/src/                private-to-HTTP source files below
     build_health_centre.py
+    dev.py                               local preview / HTTP tests only
     liveihc-template.html
     roster.py
     sheets_client.py
@@ -244,10 +251,13 @@ personnel.users staff01`. Passwords must have 12-256 characters. Each gets a
 random salt and PBKDF2-HMAC-SHA256 hash with 600,000 iterations. There are no default
 accounts or plaintext passwords. Resetting a password re-enables the account.
 
-Staff open `/ihc/personnel.cgi`, choose In or Out for personnel, enter their
-UserID/password below the table, and press Update. The form starts with saved
-values; rows still showing In/Out are left unchanged. Submitted In/Out values
-are saved together only when the credentials are valid. Valid updates are committed together with server-derived actor/time
+Staff open `/ihc/personnel.cgi`, tick personnel who are In and leave everyone
+else unticked for Out, enter their UserID/password below the table, and press
+Update. Saved In values start checked; unsaved or Out values start unchecked.
+Every listed person's status is saved, including Out for unchecked boxes; an
+all-unchecked submission saves everyone as Out. Viewing the form alone does not
+save these defaults. Reload before editing to avoid overwriting newer changes
+from another operator. Valid updates are committed together with server-derived actor/time
 and audit history, then the public page is regenerated using the cached roster.
 Invalid credentials change no personnel status records and do not regenerate the public page. The limiter permits at most
 5 attempts per remote address and 30 total per five minutes (including successful
@@ -337,7 +347,9 @@ doctor_scheduler/.venv/Scripts/python.exe -m unittest discover -s doctor_schedul
 Tests exercise real SQLite transactions, CGI subprocess output, password validation,
 malformed requests, escaping, IST dates, midnight/2400, month boundaries, published
 versus missing dates, profile matching, simultaneous writes, last-good preservation,
-and atomic replacement. They use temporary storage and fake Sheets reads only.
+and atomic replacement. The 36-test suite also checks navigation and checkbox
+saves over loopback HTTP and rejects duplicate preview listeners. Include dev.py
+when running tests/test_dev.py. Tests use temporary storage and fake Sheets reads.
 
 Hand the professor the source files listed in the deployment tree, `deploy/`, this
 README, and the generated `public/index.html` as a review artifact. Specifically

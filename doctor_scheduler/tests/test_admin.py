@@ -51,9 +51,10 @@ class AttendanceTests(unittest.TestCase):
         for private in ("long test password", self.encoded):
             self.assertNotIn(private, html)
         self.assertIn('class="status-present">In', (self.settings.public_dir / "index.html").read_text(encoding="utf-8"))
-        status, error_html = self.submit({"username": "staff", "password": "bad", "date": "2026-09-08", "person:Dr. Example": "out"})
+        status, error_html = self.submit({"username": "staff", "password": "bad", "date": "2026-09-08"})
         self.assertEqual(status, 401)
-        self.assertIn('value="in" selected', error_html)
+        self.assertTrue(any(attrs.get("name") == "person:Dr. Example" and "checked" in attrs
+                            for tag, attrs in Tags(error_html).tags if tag == "input"))
         self.assertEqual(read_day(self.path, "2026-09-08")["Dr. Example"]["state"], "present")
         set_user(self.path, "second", "long test password")
         with connect(self.path) as db:
@@ -73,9 +74,11 @@ class AttendanceTests(unittest.TestCase):
         for header in ("IHC Personnel", "UserID", "Category", "Status"):
             self.assertIn(f'>{header}</th>', html)
         self.assertLess(html.index('</table>'), html.index('type="password"'))
-        self.assertIn('value="in"', html)
-        self.assertIn('value="out"', html)
-        self.assertNotIn('value="unconfirmed"', html)
+        checkboxes = [attrs for tag, attrs in tags if tag == "input" and attrs.get("type") == "checkbox"]
+        self.assertTrue(checkboxes)
+        self.assertTrue(all(attrs["value"] == "in" and "checked" not in attrs for attrs in checkboxes))
+        self.assertNotIn("select", [tag for tag, _ in tags])
+        self.assertEqual(read_day(self.path, "2026-09-08"), {})  # Viewing defaults does not save.
 
     def test_http_preview_exception_is_explicit_and_loopback_only(self):
         from dataclasses import replace
@@ -99,7 +102,7 @@ class AttendanceTests(unittest.TestCase):
         for value in ("Nurse Example", "doctor-id", "nurse-id", "Paramedic"):
             self.assertIn(value, html)
         fields = {"username": "staff", "password": "wrong", "date": "2026-09-08",
-                  "person:Dr. Example": "in", "person:Nurse Example": "out"}
+                  "person:Dr. Example": "in"}  # Unchecked nurse is omitted by the browser.
         before = (self.settings.public_dir / "index.html").read_bytes()
         self.assertEqual(self.submit(fields)[0], 401)
         self.assertEqual(read_day(self.path, "2026-09-08"), {})
@@ -114,6 +117,23 @@ class AttendanceTests(unittest.TestCase):
         self.assertIn('class="status-absent">Out', public)
         self.assertNotIn("nurse-id", public)
         self.assertNotIn("attendance", public.lower())
+        # Reload restores saved checks; unticking everyone must clear an earlier In.
+        status, html = handle(self.settings, {"REQUEST_METHOD": "GET"}, io.BytesIO(), NOW)
+        self.assertEqual(status, 200)
+        checks = {attrs["name"]: "checked" in attrs for tag, attrs in Tags(html).tags
+                  if tag == "input" and attrs.get("type") == "checkbox"}
+        self.assertEqual(checks, {"person:Dr. Example": True, "person:Nurse Example": False})
+        del fields["person:Dr. Example"]
+        status, html = self.submit(fields)
+        self.assertEqual(status, 200)
+        self.assertTrue(all(row["state"] == "absent" for row in read_day(self.path, "2026-09-08").values()))
+        self.assertFalse(any("checked" in attrs for tag, attrs in Tags(html).tags
+                             if tag == "input" and attrs.get("type") == "checkbox"))
+        public = (self.settings.public_dir / "index.html").read_text(encoding="utf-8")
+        self.assertNotIn('class="status-present">In', public)
+        self.assertEqual(public.count('class="status-absent">Out'), 2)
+        with connect(self.path) as db:
+            self.assertEqual(db.execute("SELECT count(*) FROM attendance_history").fetchone()[0], 4)
 
     def test_disabled_unknown_and_throttled_accounts(self):
         with connect(self.path) as db:
@@ -136,7 +156,8 @@ class AttendanceTests(unittest.TestCase):
         base = [("username", "staff"), ("password", "long test password"), ("date", "2026-09-08")]
         cases = [base + [("person:Unknown", "present")], base + [("person:Dr. Example", "maybe")],
                  base + [("person:Dr. Example", "in"), ("person:Dr. Example", "out")],
-                 base + [("updated_by", "forged")], base + [("person:Dr. Example", "")]]
+                 base + [("updated_by", "forged")], base + [("person:Dr. Example", "")],
+                 base + [("person:Dr. Example", "out")]]
         for pairs in cases:
             with self.subTest(pairs=pairs):
                 self.assertEqual(self.submit(pairs)[0], 400)
@@ -154,6 +175,10 @@ class AttendanceTests(unittest.TestCase):
         self.assertEqual(self.submit()[0], 200)
         tomorrow = NOW + timedelta(days=1)
         self.assertEqual(read_day(self.path, tomorrow.date().isoformat()), {})
+        status, html = handle(self.settings, {"REQUEST_METHOD": "GET"}, io.BytesIO(), tomorrow)
+        self.assertEqual(status, 200)
+        self.assertFalse(any("checked" in attrs for tag, attrs in Tags(html).tags
+                             if tag == "input" and attrs.get("type") == "checkbox"))
         with self.assertRaises(UpdateError) as caught:
             save(self.path, "staff", "long test password", "peer", "2026-09-08", {"Dr. Example": "absent"}, {"Dr. Example"}, tomorrow)
         self.assertEqual(caught.exception.status, 409)

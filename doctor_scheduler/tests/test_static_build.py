@@ -132,15 +132,38 @@ class StaticBuildTests(unittest.TestCase):
 
     def test_india_week_crosses_month_and_missing_is_not_empty(self):
         roster = sample()
-        roster["schedule"] = {"2026-09-28": [], "2026-10-04": [{"name": "Dr. Example", "start": 0, "end": 1440}]}
-        now = datetime(2026, 9, 30, 19, tzinfo=timezone.utc)
-        payload = build_payload(roster, {}, now, now.isoformat(), "/ihc/personnel.cgi")
-        self.assertEqual(payload["meta"]["today"], "2026-10-01")
-        self.assertEqual([day["date"] for day in payload["week_grid"]],
-                         ["2026-09-28", "2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04"])
-        self.assertTrue(payload["week_grid"][0]["published"])
-        self.assertFalse(payload["week_grid"][1]["published"])
-        self.assertEqual(payload["week_grid"][6]["doctors"][0]["timing"], "00:00\u201324:00")
+        roster["schedule"] = {"2026-09-30": [], "2026-10-04": [{"name": "Dr. Example", "start": 0, "end": 1440}]}
+        # Consecutive generations straddle IST midnight and a month boundary.
+        cases = [
+            (datetime(2026, 9, 30, 18, 29, tzinfo=timezone.utc),
+             ["2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05", "2026-10-06"],
+             ["Wed", "Thu", "Fri", "Sat", "Sun", "Mon", "Tue"]),
+            (datetime(2026, 9, 30, 18, 30, tzinfo=timezone.utc),
+             ["2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05", "2026-10-06", "2026-10-07"],
+             ["Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed"]),
+            (datetime(2026, 12, 31, 18, 30, tzinfo=timezone.utc),
+             ["2027-01-01", "2027-01-02", "2027-01-03", "2027-01-04", "2027-01-05", "2027-01-06", "2027-01-07"],
+             ["Fri", "Sat", "Sun", "Mon", "Tue", "Wed", "Thu"]),
+        ]
+        for now, dates, weekdays in cases:
+            with self.subTest(now=now):
+                payload = build_payload(roster, {}, now, now.isoformat(), "/ihc/personnel.cgi")
+                grid = payload["week_grid"]
+                self.assertEqual(payload["meta"]["today"], dates[0])
+                self.assertEqual(payload["meta"]["week_start"], dates[0])
+                self.assertEqual(payload["meta"]["week_end"], dates[-1])
+                self.assertEqual([day["date"] for day in grid], dates)
+                self.assertEqual([day["day"] for day in grid], weekdays)
+                self.assertEqual([day["css_class"] for day in grid], ["today"] + [""] * 6)
+                html = template_environment().get_template("liveihc-template.html").render(payload)
+                self.assertEqual([attrs["data-date"] for _, attrs in Tags(html).tags if "data-date" in attrs], dates)
+                by_date = {day["date"]: day for day in grid}
+                if "2026-09-30" in by_date:
+                    self.assertTrue(by_date["2026-09-30"]["published"])
+                    self.assertEqual(by_date["2026-09-30"]["doctors"], [])
+                if "2026-10-01" in by_date:
+                    self.assertFalse(by_date["2026-10-01"]["published"])
+                    self.assertEqual(by_date["2026-10-04"]["doctors"][0]["timing"], "00:00\u201324:00")
 
     def test_all_doctors_and_untrusted_strings_are_escaped(self):
         name = '<script>alert("sheet")</script>'
@@ -150,7 +173,7 @@ class StaticBuildTests(unittest.TestCase):
         records = {p["name"]: {"date": "2026-09-08", "state": "present", "updated_at": '<svg onload="alert(1)">'} for p in roster["doctors"]}
         payload = build_payload(roster, records, NOW, NOW.isoformat(), "/ihc/personnel.cgi")
         html = template_environment().get_template("liveihc-template.html").render(payload)
-        self.assertEqual(len(payload["week_grid"][1]["doctors"]), 6)
+        self.assertEqual(len(payload["week_grid"][0]["doctors"]), 6)
         for tag in ("script", "img", "svg"):
             self.assertNotIn(tag, [t for t, _ in Tags(html).tags])
         self.assertIn("&lt;script&gt;", html)

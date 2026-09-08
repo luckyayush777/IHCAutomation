@@ -89,13 +89,12 @@ def build_payload(roster, status_records, now, checked_at, update_url):
         raise ValueError("Generation time must include a timezone")
     now = now.astimezone(IST)
     today = now.date()
-    monday = today - timedelta(days=today.weekday())
     week = []
     for offset in range(7):
-        day = monday + timedelta(days=offset)
+        day = today + timedelta(days=offset)
         shifts = roster["schedule"].get(day.isoformat())
         names = dict.fromkeys(shift["name"] for shift in shifts or [])
-        week.append({"day": DAYS[offset], "date": day.isoformat(),
+        week.append({"day": DAYS[day.weekday()], "date": day.isoformat(),
                      "css_class": "today" if day == today else "",
                      "published": shifts is not None,
                      "doctors": [{"name": name, "timing": timing([s for s in shifts if s["name"] == name])} for name in names]})
@@ -126,7 +125,7 @@ def build_payload(roster, status_records, now, checked_at, update_url):
                      "generated": now.strftime("%Y-%m-%d %H:%M:%S IST"),
                      "checked": checked.strftime("%Y-%m-%d %H:%M:%S IST"),
                      "stale": (now - checked).total_seconds() > REFRESH_SECONDS * 2,
-                     "week_start": monday.isoformat(), "week_end": (monday + timedelta(days=6)).isoformat()}}
+                     "week_start": today.isoformat(), "week_end": (today + timedelta(days=6)).isoformat()}}
 
 
 def template_environment():
