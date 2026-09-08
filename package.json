@@ -14,6 +14,7 @@
     "dev:dashboard": "npm run dev --workspace @ihc/dashboard",
     "dev:api": "npm run dev --workspace @ihc/api",
     "dev:simulator": "npm run dev --workspace @ihc/simulator",
+    "dev:scheduler": "node doctor_scheduler/dev.js",
     "build": "npm run build --workspace @ihc/shared && npm run build --workspace @ihc/api && npm run build --workspace @ihc/simulator && npm run build --workspace @ihc/dashboard",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
