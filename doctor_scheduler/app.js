@@ -1,4 +1,4 @@
-import { indiaClock } from './schedule.js';
+import { attendanceGroups, indiaClock } from './schedule.js';
 
 const $ = (id) => document.getElementById(id);
 const dateFormat = (date, options) =>
@@ -109,17 +109,45 @@ function render(force = false) {
     `Today's Schedule • ${dateFormat(clock.date, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}`;
   const names = [...new Set((todayShifts || []).map((shift) => shift.name))];
   const doctors = names.map((name) => data.doctors.find((doctor) => doctor.name === name));
-  $('current-doctors-title').textContent = `Doctors scheduled today (${doctors.length})`;
-  $('current-doctors').replaceChildren(
-    ...doctors.map((doctor) => {
-      const { card, bio } = profile(doctor, 'person-current');
-      bio.append(
-        element('div', 'timing', timing(todayShifts.filter((shift) => shift.name === doctor.name))),
-      );
-      if (onDuty.has(doctor.name)) bio.append(element('div', 'scheduled-now', 'Scheduled now'));
-      return card;
-    }),
+  const { available, groups } = attendanceGroups(
+    data.doctors,
+    todayShifts,
+    data.attendance,
+    today,
+    disconnected,
   );
+  $('current-doctors-title').textContent = "Today's doctor attendance";
+  $('attendance-status').textContent = !available
+    ? 'Attendance updates unavailable. Presence cannot currently be confirmed.'
+    : todayShifts === undefined
+      ? 'Today’s roster is not published. Staff reports cannot yet be matched to planned shifts.'
+      : 'Presence is reported by staff for today. Shift times below are planned times.';
+  $('attendance-status').classList.toggle('sync-warning', !available || todayShifts === undefined);
+  $('current-doctors').replaceChildren();
+  for (const [key, group] of Object.entries(groups)) {
+    if (key !== 'confirmed' && !group.doctors.length) continue;
+    const section = element('section', `attendance-group attendance-${key}`);
+    section.append(element('h4', '', `${group.label} (${group.doctors.length})`));
+    for (const doctor of group.doctors) {
+      const { card, bio } = profile(doctor, 'person-current');
+      if (doctor.shifts.length) bio.append(element('div', 'timing', timing(doctor.shifts)));
+      if (doctor.reportedAt) {
+        const reported = new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Asia/Kolkata',
+          hour: '2-digit',
+          minute: '2-digit',
+          hourCycle: 'h23',
+        }).format(new Date(doctor.reportedAt));
+        bio.append(element('div', 'qual', `Staff report: ${reported} IST`));
+      }
+      section.append(card);
+    }
+    if (!group.doctors.length)
+      section.append(
+        element('p', 'empty-message', 'No doctors confirmed by both the roster and staff yet.'),
+      );
+    $('current-doctors').append(section);
+  }
   $('current-weekly').replaceChildren(
     ...doctors.map((doctor) => {
       const row = element('div', 'doctor-week');
@@ -146,7 +174,8 @@ function render(force = false) {
     const message = todayShifts
       ? 'No doctors scheduled today.'
       : 'Today’s schedule has not been published.';
-    $('current-doctors').append(element('p', 'empty-message', message));
+    if (available && !Object.values(groups).some((group) => group.doctors.length))
+      $('current-doctors').append(element('p', 'empty-message', message));
     $('current-weekly').append(element('p', 'empty-message', message));
   }
   $('doctors-title').textContent = `Doctors (${data.doctors.length})`;
@@ -177,17 +206,17 @@ async function load() {
     disconnected = false;
     $('loading').hidden = true;
     $('schedule-content').hidden = false;
-    // Follow the server's shared refresh clock. All visitors reuse the same Google read.
+    // Check saved attendance within 30 seconds; the server alone controls Google reads.
     delay = data.refreshing
       ? 2000
       : Math.max(
           2000,
-          Math.min(120000, data.next_refresh_at * 1000 - (Date.now() + clockOffset) + 1000),
+          Math.min(30000, data.next_refresh_at * 1000 - (Date.now() + clockOffset) + 1000),
         );
     render(true);
   } catch {
     disconnected = true;
-    if (data) refreshStatus();
+    if (data) render(true);
     else {
       $('loading').textContent =
         'The doctor schedule is temporarily unavailable. Retrying automatically.';

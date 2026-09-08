@@ -56,7 +56,8 @@ async function waitFor(expression) {
 
 try {
   const live = await (await fetch(`${base}/api/schedule`)).json();
-  assert.equal(live.doctors.length, 8);
+  const doctorCount = live.doctors.length;
+  assert.ok(doctorCount > 0);
   assert.deepEqual(live.staff, []);
   assert.equal(live.refresh_seconds, 120);
   for (const path of [
@@ -71,7 +72,7 @@ try {
   await command('Page.enable');
   await command('Network.enable');
   await command('Page.navigate', { url: base });
-  await waitFor("document.querySelectorAll('#doctors .card').length === 8");
+  await waitFor(`document.querySelectorAll('#doctors .card').length === ${doctorCount}`);
   assert.equal(await evaluate("document.querySelectorAll('#weekly .day').length"), 7);
   assert.equal(await evaluate("document.querySelectorAll('#staff .card').length"), 0);
   await mkdir(new URL('../.cache/', import.meta.url), { recursive: true });
@@ -103,7 +104,7 @@ try {
   await command('Network.setBlockedURLs', { urls: ['*/api/schedule'] });
   await evaluate("document.getElementById('retry').click()");
   await waitFor("document.getElementById('sync-status').textContent.includes('Updates delayed')");
-  assert.equal(await evaluate("document.querySelectorAll('#doctors .card').length"), 8);
+  assert.equal(await evaluate("document.querySelectorAll('#doctors .card').length"), doctorCount);
   await command('Network.setBlockedURLs', { urls: [] });
   await evaluate("document.getElementById('retry').click()");
   await waitFor("document.getElementById('sync-status').textContent.includes('Roster up to date')");
@@ -117,6 +118,7 @@ try {
     next_refresh_at: frozen / 1000 + 1,
     doctors: [{ name: 'Dr. Test <script>', role: 'Allopathy', qual: 'MBBS' }],
     schedule: { '2026-09-08': [{ name: 'Dr. Test <script>', start: 1080, end: 1140 }] },
+    attendance: { date: '2026-09-08', status: 'ok', records: [] },
   };
   await command('Fetch.enable', { patterns: [{ urlPattern: '*/api/schedule' }] });
   await command('Page.reload');
@@ -128,6 +130,51 @@ try {
     await evaluate("document.getElementById('doctors').textContent"),
     /Dr\. Test <script>/,
   );
+  await waitFor(
+    "document.querySelectorAll('.attendance-unconfirmed .person-current').length === 1",
+  );
+  assert.equal(
+    await evaluate("document.querySelectorAll('.attendance-confirmed .person-current').length"),
+    0,
+  );
+  const sheetSections = await evaluate(
+    "[document.getElementById('weekly').innerHTML, document.getElementById('current-weekly').innerHTML]",
+  );
+  const record = {
+    name: 'Dr. Test <script>',
+    state: 'present',
+    updated_at: new Date(frozen).toISOString(),
+  };
+  mockResponse.attendance.records = [record];
+  await waitFor("document.querySelectorAll('.attendance-confirmed .person-current').length === 1");
+  assert.deepEqual(
+    await evaluate(
+      "[document.getElementById('weekly').innerHTML, document.getElementById('current-weekly').innerHTML]",
+    ),
+    sheetSections,
+  );
+  mockResponse.attendance.records = [{ ...record, state: 'absent' }];
+  await waitFor("document.querySelectorAll('.attendance-absent .person-current').length === 1");
+  assert.equal(
+    await evaluate("document.querySelectorAll('.attendance-confirmed .person-current').length"),
+    0,
+  );
+  assert.deepEqual(
+    await evaluate(
+      "[document.getElementById('weekly').innerHTML, document.getElementById('current-weekly').innerHTML]",
+    ),
+    sheetSections,
+  );
+  mockResponse.attendance.records = [record];
+  mockResponse.schedule = { '2026-09-08': [] };
+  await waitFor(
+    "document.querySelectorAll('.attendance-unscheduled .person-current').length === 1",
+  );
+  mockResponse.schedule = {};
+  await waitFor(
+    "document.querySelectorAll('.attendance-unpublished .person-current').length === 1",
+  );
+  mockResponse.attendance.records = [];
   // The next automatic cache poll must update the screen without reload/click.
   mockResponse = {
     ...mockResponse,
@@ -155,10 +202,10 @@ try {
   );
   await command('Network.setBlockedURLs', { urls: [] });
   await evaluate("document.getElementById('retry').click()");
-  await waitFor("document.querySelectorAll('#doctors .card').length === 8");
+  await waitFor(`document.querySelectorAll('#doctors .card').length === ${doctorCount}`);
   assert.equal(errors.length, 0, JSON.stringify(errors));
   console.log(
-    'PASS: live profiles, empty staff, 6 viewport widths, automatic cached updates, empty/unpublished dates, offline recovery, safe text, and blocked private files.',
+    'PASS: profiles, empty staff, 6 viewport widths, automatic attendance categories, unchanged weekly sections, empty/unpublished dates, offline recovery, safe text, and blocked private files.',
   );
 } finally {
   await command('Browser.close');

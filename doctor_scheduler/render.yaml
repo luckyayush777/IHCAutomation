@@ -13,3 +13,11 @@ services:
         value: /etc/secrets/google-service-account.json
       - key: IHC_SPREADSHEET_ID
         value: 1ly7oTO9hWSTxfOr1di7H7LMHRgZutOsmfdxJQQhj-KA
+      - key: IHC_ADMIN_USERNAME
+        value: user123
+      - key: IHC_ADMIN_PASSWORD
+        sync: false
+      - key: IHC_ADMIN_ORIGIN
+        sync: false
+      - key: IHC_COOKIE_SECURE
+        value: 'true'

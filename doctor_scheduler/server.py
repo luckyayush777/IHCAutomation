@@ -11,6 +11,7 @@ import threading
 import time
 from urllib.parse import urlsplit
 
+from admin.service import AdminError, AdminService
 from roster import fetch_roster
 from sheets_client import ROOT, SPREADSHEET_ID, REFRESH_SECONDS, ReadCooldown, SheetsClient
 
@@ -21,6 +22,11 @@ PUBLIC_FILES = {
     "/styles.css": ("styles.css", "text/css; charset=utf-8"),
     "/app.js": ("app.js", "text/javascript; charset=utf-8"),
     "/schedule.js": ("schedule.js", "text/javascript; charset=utf-8"),
+    "/admin": ("admin/index.html", "text/html; charset=utf-8"),
+    "/admin/": ("admin/index.html", "text/html; charset=utf-8"),
+    "/admin/index.html": ("admin/index.html", "text/html; charset=utf-8"),
+    "/admin/admin.css": ("admin/admin.css", "text/css; charset=utf-8"),
+    "/admin/admin.js": ("admin/admin.js", "text/javascript; charset=utf-8"),
 }
 
 
@@ -104,10 +110,62 @@ class ScheduleHandler(BaseHTTPRequestHandler):
     def do_HEAD(self):
         self.respond(head=True)
 
+    def do_POST(self):
+        path = urlsplit(self.path).path
+        if path not in {"/api/admin/login", "/api/admin/logout", "/api/admin/attendance"}:
+            self.send_json({"error": "Not found"}, 404)
+            return
+        try:
+            if self.headers.get_content_type() != "application/json":
+                raise AdminError(415, "Send JSON content.")
+            if self.headers.get("Transfer-Encoding") or len(self.headers.get_all("Content-Length", [])) != 1:
+                raise AdminError(400, "A single Content-Length header is required.")
+            try:
+                length = int(self.headers["Content-Length"])
+            except ValueError:
+                raise AdminError(400, "Invalid request length.") from None
+            if not 0 < length <= 8192:
+                raise AdminError(413, "Request is too large or empty.")
+            self.connection.settimeout(5)
+            raw = self.rfile.read(length)
+            if len(raw) != length:
+                raise AdminError(400, "Incomplete request.")
+            try:
+                payload = json.loads(raw.decode("utf-8"))
+            except (ValueError, UnicodeError):
+                raise AdminError(400, "Invalid JSON content.") from None
+            result, headers = self.server.admin.post(path, self.headers, payload, self.client_address[0])
+            self.send_json(result, headers=headers)
+        except AdminError as error:
+            self.send_json({"error": str(error)}, error.status)
+        except TimeoutError:
+            self.send_json({"error": "Request timed out."}, 408)
+        except Exception as error:
+            logging.error("Admin request failed (%s)", type(error).__name__)
+            self.send_json({"error": "The request could not be completed. Please try again."}, 500)
+
+    def send_json(self, payload, status=200, headers=(), head=False):
+        self.send_content(json.dumps(payload).encode("utf-8"), status,
+                          "application/json; charset=utf-8", headers, head)
+
     def respond(self, head=False):
         path = urlsplit(self.path).path
+        if path.startswith("/api/admin/"):
+            try:
+                self.send_json(self.server.admin.get(path, self.headers.get("Cookie")), head=head)
+            except AdminError as error:
+                self.send_json({"error": str(error)}, error.status, head=head)
+            except Exception as error:
+                logging.error("Admin read failed (%s)", type(error).__name__)
+                self.send_json({"error": "Attendance is temporarily unavailable."}, 500, head=head)
+            return
         if path == "/api/schedule":
             payload = self.server.store.snapshot()
+            try:
+                payload["attendance"] = self.server.admin.public_attendance(payload)
+            except Exception as error:
+                logging.error("Public attendance read failed (%s)", type(error).__name__)
+                payload["attendance"] = {"status": "unavailable", "records": []}
             body = json.dumps(payload).encode("utf-8")
             status = 200 if "doctors" in payload else 503
             mime = "application/json; charset=utf-8"
@@ -117,12 +175,18 @@ class ScheduleHandler(BaseHTTPRequestHandler):
             status = 200
         else:
             body, mime, status = b"Not found", "text/plain; charset=utf-8", 404
+        self.send_content(body, status, mime, head=head)
+
+    def send_content(self, body, status, mime, headers=(), head=False):
         self.send_response(status)
         self.send_header("Content-Type", mime)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'")
+        self.send_header("Referrer-Policy", "same-origin")
+        self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'")
+        for name, value in headers:
+            self.send_header(name, value)
         self.end_headers()
         if not head:
             self.wfile.write(body)
@@ -133,6 +197,13 @@ def main():
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8080")))
     args = parser.parse_args()
+    username = os.environ.get("IHC_ADMIN_USERNAME", "user123")
+    password = os.environ.get("IHC_ADMIN_PASSWORD", "1234")
+    origin = os.environ.get("IHC_ADMIN_ORIGIN", "")
+    secure_cookie = os.environ.get("IHC_COOKIE_SECURE", "").lower() == "true"
+    if args.host not in {"127.0.0.1", "localhost", "::1"}:
+        if len(password) < 12 or password == "1234" or not secure_cookie or not origin.startswith("https://"):
+            parser.error("Non-local admin access requires a 12+ character IHC_ADMIN_PASSWORD, HTTPS IHC_ADMIN_ORIGIN, and IHC_COOKIE_SECURE=true.")
     log_dir = ROOT / "logs"
     log_dir.mkdir(exist_ok=True)
     logging.basicConfig(
@@ -148,6 +219,9 @@ def main():
     store = RosterStore(lambda: fetch_roster(client), ROOT / ".cache" / "roster.json")
     server = ThreadingHTTPServer((args.host, args.port), ScheduleHandler)
     server.store = store
+    origins = [origin] if origin else [f"http://127.0.0.1:{args.port}", f"http://localhost:{args.port}"]
+    server.admin = AdminService(ROOT / "storage" / "attendance.sqlite", store, origins,
+                                username, password, secure_cookie)
     stop = threading.Event()
     worker = threading.Thread(target=store.run, args=(stop,), daemon=True)
     worker.start()

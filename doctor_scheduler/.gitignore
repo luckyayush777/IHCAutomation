@@ -2,3 +2,4 @@ __pycache__/
 .preview-browser/
 preview-*.png
 preview-*.log
+storage/

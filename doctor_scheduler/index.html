@@ -32,7 +32,7 @@
       <div id="schedule-content" hidden>
         <section class="section">
           <div class="section-head">
-            <h2>Weekly Schedule</h2>
+            <h2>Tentative Weekly Schedule</h2>
             <div class="section-note" id="week-label"></div>
           </div>
           <div class="schedule-grid" id="weekly"></div>
@@ -40,11 +40,14 @@
         <section class="section">
           <div class="section-head">
             <h2 id="today-title">Today's Schedule</h2>
-            <div class="section-note">All times IST · Scheduled availability</div>
+            <div class="section-note">
+              All times IST · Planned shifts and staff-reported attendance
+            </div>
           </div>
           <div class="today-panel">
             <div class="subpanel">
-              <h3 id="current-doctors-title">Doctors scheduled today</h3>
+              <h3 id="current-doctors-title">Today's doctor attendance</h3>
+              <p id="attendance-status" class="empty-message" role="status"></p>
               <div class="people" id="current-doctors"></div>
             </div>
             <div class="subpanel">
@@ -77,7 +80,7 @@
     <footer class="footer">
       <div class="container footer-inner">
         <div>Institute Health Centre</div>
-        <div>Doctor roster refreshes every 2 minutes</div>
+        <div>Doctor roster refreshes every 2 minutes · <a href="/admin">Staff sign in</a></div>
       </div>
     </footer>
   </body>
